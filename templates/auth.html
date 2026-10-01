@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="uz">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STUGO — Kirish / Ro'yxatdan o'tish</title>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts (Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+          rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #0B1220;
+            --bg-card: #111A2E;
+            --bg-card-hover: #16233B;
+            --bg-input: #0F1A2E;
+            --bg-glass: rgba(17, 26, 46, 0.72);
+            --bg-glass-strong: rgba(11, 18, 32, 0.92);
+            --border: #1E2A42;
+            --border-focus: #3B82F6;
+            --text-primary: #F1F5F9;
+            --text-secondary: #94A3B8;
+            --text-muted: #64748B;
+            --accent: #3B82F6;
+            --accent-glow: rgba(59, 130, 246, 0.30);
+            --success: #10B981;
+            --warning: #F59E0B;
+            --error: #EF4444;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background:
+                radial-gradient(1200px 600px at 80% -10%, rgba(59, 130, 246, 0.12), transparent 60%),
+                radial-gradient(900px 500px at -10% 110%, rgba(16, 185, 129, 0.10), transparent 55%),
+                var(--bg-body);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        /* ===== CARD ===== */
+        .auth-card {
+            width: 100%;
+            max-width: 440px;
+            background: var(--bg-glass-strong);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+            padding: 36px 32px 32px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .auth-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: var(--radius);
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), transparent 50%, rgba(16, 185, 129, 0.06));
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .auth-card-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .auth-card-header .logo {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--accent), #2563EB);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.30);
+        }
+
+        .auth-card-header .logo svg {
+            width: 26px;
+            height: 26px;
+            fill: #fff;
+        }
+
+        .auth-card-header h1 {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 6px;
+        }
+
+        .auth-card-header p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ===== TABS ===== */
+        .tabs {
+            display: flex;
+            background: var(--bg-card);
+            border-radius: var(--radius-sm);
+            padding: 4px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 6px 14px rgba(59, 130, 246, 0.30);
+        }
+
+        .tab .indicator {
+            width: 18px;
+            height: 3px;
+            border-radius: 3px;
+            background: #fff;
+            transition: opacity 0.2s ease;
+        }
+
+        /* ===== FORMS ===== */
+        .form-section {
+            display: none;
+        }
+
+        .form-section.active {
+            display: block;
+            animation: fadeUp 0.25s ease;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 7px;
+        }
+
+        .phone-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .phone-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 13px 14px;
+            color: var(--text-primary);
+            outline: none;
+            font-size: 14px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            border-color: var(--accent-focus);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-group .error {
+            font-size: 12px;
+            color: var(--error);
+            margin-top: 6px;
+            display: none;
+        }
+
+        .form-group.error .error { display: block; }
+        .form-group.error input,
+        .form-group.error textarea,
+        .form-group.error select { border-color: var(--error); }
+
+        .phone-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 7px;
+            line-height: 1.5;
+        }
+
+        .field-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .field-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .toggle-text {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .toggle-text a {
+            color: var(--accent);
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .toggle-text a:hover { text-decoration: underline; }
+
+        /* ===== BUTTONS ===== */
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn-row .btn {
+            flex: 1;
+            justify-content: center;
+        }
+
+        .btn-spacer {
+            flex: 1;
+        }
+
+        .btn-primary,
+        .btn-secondary,
+        .btn-success,
+        .btn-danger,
+        .btn-ghost {
+            padding: 13px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.30);
+        }
+
+        .btn-primary:hover:not(:disabled) { background: #2563EB; transform: translateY(-2px); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .btn-success {
+            background: var(--success);
+            color: #fff;
+        }
+
+        .btn-success:hover:not(:disabled) { background: #059669; transform: translateY(-2px); }
+        .btn-success:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .btn-ghost:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ===== LOADING DOT ===== */
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--text-muted);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: none;
+            flex-shrink: 0;
+        }
+
+        .spinner.active { display: flex; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 12px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.30);
+            backdrop-filter: blur(12px);
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            z-index: 5000;
+            max-width: 90vw;
+            text-align: center;
+        }
+
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.error { border-color: var(--error); }
+        .toast.success { border-color: var(--success); }
+
+        /* ===== MISC ===== */
+        .auth-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .auth-footer a {
+            color: var(--accent);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .auth-footer a:hover { text-decoration: underline; }
+
+        .page-transition {
+            position: fixed;
+            inset: 0;
+            z-index: 4999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.50);
+        }
+
+        .page-transition.show { display: flex; }
+        .page-transition .spinner {
+            width: 40px;
+            height: 40px;
+            border-width: 4px;
+        }
+
+        @media (max-width: 520px) {
+            .auth-card { padding: 24px 20px 20px; }
+            .field-row { flex-direction: column; gap: 0; }
+            .btn-row { flex-direction: column; }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="auth-card" role="main">
+    <div class="auth-card-header">
+        <div class="logo">
+            <svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+                <path d="M250 80 L60 170 L250 260 L440 170 Z"/>
+                <path d="M410 200 L410 320" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+                <circle cx="410" cy="335" r="15"/>
+                <path
+                        d="M200 230 C 130 250, 130 350, 250 370 C 370 390, 370 470, 230 480 C 160 480, 110 430, 110 400"
+                        fill="none" stroke="#FFFFFF" stroke-width="50" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <h1>StuGo</h1>
+        <p>Tizimda registratsiya va kirish</p>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+        <button class="tab active" data-tab="signin">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Kirish</span>
+            <span class="indicator"></span>
+        </button>
+        <button class="tab" data-tab="register">
+            <i class="fa-solid fa-user-plus"></i>
+            <span>Ro'yxatdan o'tish</span>
+            <span class="indicator"></span>
+        </button>
+    </div>
+
+    <!-- SIGN IN -->
+    <div class="form-section active" id="tab-signin">
+        <div class="form-group">
+            <label for="signinPhone">Telefon raqam</label>
+            <div class="phone-row">
+                <div class="form-group" style="flex:0 0 90px;">
+                    <select id="signinCountry" aria-label="Millat">
+                        <option value="998" selected>+998 (O'zbekiston)</option>
+                    </select>
+                </div>
+                <input type="tel" id="signinPhone" inputmode="numeric" placeholder="+998 90 123 45 67"
+                       autocomplete="tel">
+            </div>
+            <div class="phone-hint"><i class="fa-solid fa-phone"></i> 12 raqamli: +998 + operator kodi + 7 raqam.</div>
+            <div class="error" id="signinPhoneError"></div>
+        </div>
+
+        <button class="btn btn-primary" id="signinBtn">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span id="signinBtnText">Telefonga kod yuborish</span>
+            <span class="spinner" id="signinSpinner"></span>
+        </button>
+    </div>
+
+    <!-- REGISTER -->
+    <div class="form-section" id="tab-register">
+        <div class="form-group">
+            <label for="registerPhone">Telefon raqam</label>
+            <div class="phone-row">
+                <div class="form-group" style="flex:0 0 90px;">
+                    <select id="registerCountry" aria-label="Millat">
+                        <option value="998" selected>+998 (O'zbekiston)</option>
+                    </select>
+                </div>
+                <input type="tel" id="registerPhone" inputmode="numeric" placeholder="+998 90 123 45 67"
+                       autocomplete="tel">
+            </div>
+            <div class="phone-hint"><i class="fa-solid fa-phone"></i> 12 raqamli: +998 + operator kodi + 7 raqam.</div>
+            <div class="error" id="registerPhoneError"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="registerName">Ismingiz</label>
+            <input type="text" id="registerName" placeholder="Ali Karimov" autocomplete="name">
+            <div class="error" id="registerNameError"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="registerEmail">Universitet emaili</label>
+            <input type="email" id="registerEmail" placeholder="ali@uzswlu.uz" autocomplete="email">
+            <div class="error" id="registerEmailError"></div>
+        </div>
+
+        <button class="btn btn-primary" id="registerBtn">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span id="registerBtnText">Telefonga kod yuborish</span>
+            <span class="spinner" id="registerSpinner"></span>
+        </button>
+    </div>
+
+    <div class="toggle-text">
+        <span id="switchModeLabel">Men birinchi bor? <a id="switchModeLink">Ro'yxatdan o'tish</a></span>
+    </div>
+
+    <div class="auth-footer">
+        <a id="footerSwitch">Dasturga kirish</a>
+    </div>
+</div>
+
+<!-- PAGE LOADING -->
+<div class="page-transition" id="pageTransition">
+    <div class="spinner"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+    (function () {
+        'use strict';
+
+        // ---------- i18n (frontend JSON catalog) ----------
+        const CATALOGS = {{ i18n_catalogs|safe }};
+        const FALLBACK = CATALOGS['uz'] || {};
+        const LANG = ({{ current_language|default:'uz' }} || 'uz');
+        const CATALOG = (CATALOGS[LANG] && typeof CATALOGS[LANG] === 'object') ? CATALOGS[LANG] : FALLBACK;
+
+        function t(key, params) {
+            let text = FALLBACK[key] !== undefined ? FALLBACK[key] : CATALOG[key];
+            if (text === undefined) text = key;
+            if (params) {
+                for (const k in params) {
+                    const re = new RegExp('\\{' + k + '\\}', 'g');
+                    text = text.replace(re, params[k]);
+                }
+            }
+            return text;
+        }
+
+        // ---------- DOM ----------
+        const tabs = document.querySelectorAll('.tab');
+        const sections = {
+            signin: document.getElementById('tab-signin'),
+            register: document.getElementById('tab-register'),
+        };
+        const signinBtn = document.getElementById('signinBtn');
+        const registerBtn = document.getElementById('registerBtn');
+        const signinBtnText = document.getElementById('signinBtnText');
+        const registerBtnText = document.getElementById('registerBtnText');
+        const signinSpinner = document.getElementById('signinSpinner');
+        const registerSpinner = document.getElementById('registerSpinner');
+        const switchModeLink = document.getElementById('switchModeLink');
+        const footerSwitch = document.getElementById('footerSwitch');
+        const toast = document.getElementById('toast');
+        const pageTransition = document.getElementById('pageTransition');
+
+        let currentTab = 'signin';
+        let resendTimer = null;
+        let lastError = '';
+
+        // ---------- Toast ----------
+        function showToast(message, isError) {
+            toast.textContent = message;
+            toast.className = 'toast' + (isError ? ' error' : ' success');
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => toast.classList.remove('show'), 4000);
+        }
+
+        // ---------- Tabs ----------
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const target = tab.dataset.tab;
+                if (target === currentTab) return;
+                switchTab(target);
+            });
+        });
+
+        function switchTab(tabId) {
+            currentTab = tabId;
+            Object.keys(sections).forEach(key => {
+                sections[key].classList.toggle('active', key === tabId);
+            });
+            tabs.forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === tabId);
+            });
+
+            // switch top-level link text
+            const links = [switchModeLink, footerSwitch];
+            links.forEach(l => {
+                if (!l) return;
+                const signin = (l.id === 'switchModeLink');
+                l.textContent = signin
+                    ? t('auth.title')
+                    : t('brand.name');
+            });
+
+            // reset validation on section switch
+            document.querySelectorAll('.form-group').forEach(el => el.classList.remove('error'));
+        }
+
+        // ---------- Refs ----------
+        const signinPhone = document.getElementById('signinPhone');
+        const signinCountry = document.getElementById('signinCountry');
+        const signinPhoneError = document.getElementById('signinPhoneError');
+        const registerPhone = document.getElementById('registerPhone');
+        const registerCountry = document.getElementById('registerCountry');
+        const registerPhoneError = document.getElementById('registerPhoneError');
+        const registerName = document.getElementById('registerName');
+        const registerNameError = document.getElementById('registerNameError');
+        const registerEmail = document.getElementById('registerEmail');
+        const registerEmailError = document.getElementById('registerEmailError');
+
+        const countrySelects = [signinCountry, registerCountry];
+        const phoneInputs = [signinPhone, registerPhone];
+        const phoneErrors = [signinPhoneError, registerPhoneError];
+        const nameInput = registerName;
+        const nameError = registerNameError;
+        const emailInput = registerEmail;
+        const emailError = registerEmailError;
+
+        // ---------- Helpers ----------
+        function getPhoneValue(input) {
+            let val = input.value.trim();
+            val = val.replace(/[\s\-()]/g, '');
+            return val;
+        }
+
+        function normalizePhone(raw) {
+            let digits = raw.replace(/\D/g, '');
+            if (digits.startsWith('998') && digits.length === 13) {
+                return '+' + digits;
+            }
+            if (digits.startsWith('998') && digits.length === 12) {
+                return '+' + digits;
+            }
+            if (digits.length === 9) {
+                return '+998' + digits;
+            }
+            if (digits.length === 10) {
+                return '+998' + digits;
+            }
+            return null;
+        }
+
+        function validatePhone(input, errorEl, flag) {
+            const raw = getPhoneValue(input);
+            const phone = normalizePhone(raw);
+            if (!phone) {
+                input.classList.add('error');
+                errorEl.textContent = t('auth.phoneFormatHint');
+                return null;
+            }
+            if (phone.length !== 12 || !phone.startsWith('+998')) {
+                input.classList.add('error');
+                errorEl.textContent = t('auth.phoneBadLength', { count: phone.length - 2, missing: 10 });
+                return null;
+            }
+            input.classList.remove('error');
+            errorEl.textContent = '';
+            return phone;
+        }
+
+        function validateRegister() {
+            let ok = true;
+            let p = validatePhone(registerPhone, registerPhoneError, 'register');
+            if (!p) ok = false;
+            if (!registerName.value.trim()) {
+                nameInput.classList.add('error');
+                nameError.textContent = t('auth.fullName');
+                ok = false;
+            } else {
+                nameInput.classList.remove('error');
+                nameError.textContent = '';
+            }
+            if (!registerEmail.value.trim()) {
+                emailInput.classList.add('error');
+                emailError.textContent = t('auth.universityEmail');
+                ok = false;
+            } else {
+                emailInput.classList.remove('error');
+                emailError.textContent = '';
+            }
+            return ok ? p : null;
+        }
+
+        // ---------- API ----------
+        function apiPost(url, data) {
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            }).then(async res => {
+                const body = await res.json().catch(() => ({}));
+                return { status: res.status, data: body };
+            });
+        }
+
+        function requestOTP(phone, purpose, btn, btnText, spinner, country) {
+            country.value = signinCountry.value;
+            return validatePhone(phone, phoneErrors[0], 'signin')
+                .then(phone => {
+                    if (!phone) return null;
+                    return apiPost('/api/v1/auth/send-otp/', { phone: phone, purpose: purpose });
+                })
+                .then(res => {
+                    if (res.status === 429) {
+                        showToast(t('auth.sending') || 'Ayrim vaqt o'tishi kerak.', true);
+                        return null;
+                    }
+                    if (!res.status || res.status >= 400) {
+                        lastError = res.data.detail || t('common.somethingWrong');
+                        showToast(lastError, true);
+                        return null;
+                    }
+                    btn.disabled = true;
+                    btnText.textContent = t('auth.checking') || 'Tekshirilmoqda...';
+                    spinner.classList.add('active');
+                    return res.data;
+                })
+                .catch(() => {
+                    btn.disabled = false;
+                    btnText.textContent = btnText.dataset.orig || 'Telefonga kod yuborish';
+                    spinner.classList.remove('active');
+                    showToast(t('common.networkError') || 'Tarmoq xatosi. qayta urinib ko\'ring.', true);
+                });
+        }
+
+        // ---------- Sign in ----------
+        signinBtn.addEventListener('click', () => {
+            const phone = validatePhone(signinPhone, signinPhoneError, 'signin');
+            if (!phone) { signinPhone.focus(); return; }
+
+            requestOTP(phone, 'login', signinBtn, signinBtnText, signinSpinner, signinCountry)
+                .then(res => {
+                    if (!res) return;
+                    if (res.debug_code) {
+                        showToast('Lokal kod: ' + res.debug_code);
+                    } else {
+                        showToast(t('auth.codeSent') || 'Kod yuborildi. kutib turing.');
+                    }
+                    // for demo; normally the user continues to verify
+                    signinBtn.textContent = t('auth.verifyLogin') || 'Tasdiqlash va kirish';
+                    signinBtn.disabled = false;
+                    signinSpinner.classList.remove('active');
+                    signinBtn.dataset.nextTab = 'signin';
+                });
+        });
+
+        // ---------- Register ----------
+        registerBtn.addEventListener('click', () => {
+            const phone = validateRegister();
+            if (!phone) { registerPhone.focus(); return; }
+
+            requestOTP(phone, 'register', registerBtn, registerBtnText, registerSpinner, registerCountry)
+                .then(res => {
+                    if (!res) return;
+                    if (res.debug_code) {
+                        showToast('Lokal kod: ' + res.debug_code);
+                    } else {
+                        showToast(t('auth.codeSent') || 'Kod yuborildi. kutib turing.');
+                    }
+                    registerBtn.textContent = t('auth.verifyLogin') || 'Tasdiqlash va kirish';
+                    registerBtn.disabled = false;
+                    registerSpinner.classList.remove('active');
+                    registerBtn.dataset.nextTab = 'register';
+                });
+        });
+
+        // ---------- Mode switching ----------
+        switchModeLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isRegister = currentTab === 'register';
+            switchTab(isRegister ? 'signin' : 'register');
+            // reset form state
+            [signinPhone, registerPhone, registerName, registerEmail].forEach(el => el.classList.remove('error'));
+            [signinPhoneError, registerPhoneError, registerNameError, registerEmailError].forEach(el => el.textContent = '');
+            if (!isRegister) {
+                signinPhone.focus();
+            } else {
+                registerPhone.focus();
+            }
+        });
+
+        footerSwitch.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchTab(currentTab === 'register' ? 'signin' : 'register');
+            [signinPhone, registerPhone, registerName, registerEmail].forEach(el => el.classList.remove('error'));
+            [signinPhoneError, registerPhoneError, registerNameError, registerEmailError].forEach(el => el.textContent = '');
+            if (currentTab === 'signin') {
+                signinPhone.focus();
+            } else {
+                registerPhone.focus();
+            }
+        });
+
+        // ---------- Toast helpers ----------
+        function toastSuccess(msg) { showToast(msg, false); }
+        function toastError(msg) { showToast(msg, true); }
+
+        // ---------- Key handlers (Enter to submit) ----------
+        signinPhone.addEventListener('keydown', (e) => { if (e.key === 'Enter') signinBtn.click(); });
+        registerPhone.addEventListener('keydown', (e) => { if (e.key === 'Enter') registerBtn.click(); });
+        registerName.addEventListener('keydown', (e) => { if (e.key === 'Enter') registerBtn.click(); });
+        registerEmail.addEventListener('keydown', (e) => { if (e.key === 'Enter') registerBtn.click(); });
+
+        // ---------- Init ----------
+        // prefill a demo phone for demo mode
+        signinPhone.value = '+998901111111';
+        registerPhone.value = '+998901111111';
+    })();
+</script>
+
+</body>
+
+</html>

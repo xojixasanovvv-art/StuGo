@@ -1,0 +1,4411 @@
+{% load i18n_tags %}<!DOCTYPE html>
+<html lang="{{ current_language|default:"uz" }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STUGO — {% tt "brand.tagline" %}</title>
+
+    <!-- Barcha tillar JS ga bir marta beriladi: tilni serverga so'rov
+         yubormasdan almashtirish mumkin bo'ladi (tez, uzluksiz almashuv). -->
+    {{ i18n_catalogs|json_script:"stugo-i18n-catalogs" }}
+    {{ current_language|json_script:"stugo-current-lang" }}
+    {{ languages|json_script:"stugo-languages" }}
+
+    <!-- Favicon: inline SVG (tashqi fayl so'ramaydi, 404 chiqmaydi) -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2316a34a'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-size='34' font-family='Arial,sans-serif' font-weight='700' fill='white'%3ES%3C/text%3E%3C/svg%3E">
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts (Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+          rel="stylesheet">
+
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <!-- Rejimni og'ishdan OLDIN o'qiymiz.
+         Bu skript `<body>` dan oldin ishlaydi va `localStorage` dagi
+         `data-theme` ni `<html>` ga yozadi. Aks holda foydalanuvchi
+         sahifani F5 qilganda bir zum oq fon ko'radi, keyin qoraga
+         almashadi ("chala chizilgan" effekt). -->
+    <script>
+        (function () {
+            var theme = 'light';
+            try { theme = localStorage.getItem('stugo_theme') || 'light'; } catch (e) {}
+            // Tizimga moslashgan mavoriyalar, agar foydalanuvchi
+            // hali tanlagan bo'lmasa
+            if (theme === 'system') {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+
+    <style>
+        /* =================================================================
+           RANGLAR (semantik tokenlar)
+
+           Barcha sirt/matn/chiziq ranglari shu o'zgaruvchilardan olinadi.
+           Shuning uchun `[data-theme="dark"]` da faqat bir nechta qiymatni
+           almashtirish butun saytni qayta bo'yaydi — 100+ qoidani tegilmaydi.
+
+           Eslatma: `--card-dark` (#0A192F) — dizayn talabi bo'yicha
+           o'zgarmas qoladigan to'q ko'k kard. Shu sababli undagi `color:
+           #FFFFFF` matn ham o'zgar maydi: ikki rejimda ham oq.
+           ================================================================= */
+        :root {
+            /* --- Fon va sirtlar --- */
+            --bg: #FFFFFF;
+            --surface: #FFFFFF;   /* karta, modal, panel */
+            --surface-2: #F1F5F9; /* nav-tabs, kichik bo'lim */
+            --surface-3: #F8FAFC; /* juft qatli input, bo'sh holat */
+            --surface-4: #E2E8F0; /* badge, ajratkich */
+            --header-bg: rgba(255, 255, 255, 0.96);
+
+            /* --- Chegara --- */
+            --border: #E2E8F0;
+            --border-strong: #CBD5E1;
+
+            /* --- Matn --- */
+            --text: #0F172A;
+            --text-muted: #64748B;
+            --text-faint: #94A3B8;
+            --text-muted-2: #475569;
+            --on-dark: #FFFFFF;    /* to'q kard ustidagi matn */
+
+            /* --- Aksent (ikkala rejimda ham bir xil) --- */
+            --card-dark: #0A192F;
+            --card-dark-border: #1E293B;
+            --tyomni-siniy: #0A192F;
+            --navy-blue: #0B2545;
+            --badge-green: #10B981;
+            --danger-soft: #FEF2F2;
+            --danger-border: #FECACA;
+            --danger: #DC2626;
+            --ok-soft: #ECFDF3;
+            --ok-border: #BBF7D0;
+            --ok: #16A34A;
+            --info: #2563EB;
+            --fav: #E11D48;
+
+            /* --- Dizayn talablari (o'zgarmaydi) --- */
+            /* Hover rangi: Oqqa yaqin 15-20% och kulrang */
+            --card-hover-gray: #E2E8F0;
+            --shadow-hover: 0 16px 32px rgba(10, 25, 47, 0.2);
+        }
+
+        /* --- QORA REJIM ---------------------------------------------------
+           `data-theme="dark"` `<html>` da turadi (JS qo'yadi). Ranglar
+           loyihaning asosiy to'q ko'rini (#0A192F) asosida: fon bir oz
+           yorqiroq, karta yanada to'qroq — shunda karta fon ustida
+           ko'rinib turadi. */
+        [data-theme="dark"] {
+            --bg: #0A1220;
+            --surface: #111C2E;
+            --surface-2: #16233A;
+            --surface-3: #142033;
+            --surface-4: #1E2C45;
+            --header-bg: rgba(17, 28, 46, 0.96);
+
+            --border: #22314C;
+            --border-strong: #2E4062;
+
+            --text: #E8EEF7;
+            --text-muted: #93A4BC;
+            --text-faint: #64748B;
+            --text-muted-2: #8A9BB4;
+
+            --danger-soft: #3B1A1A;
+            --danger-border: #7F1D1D;
+            --danger: #F87171;
+            --ok-soft: #10281B;
+            --ok-border: #1E5A38;
+            --ok: #4ADE80;
+            --info: #60A5FA;
+            --fav: #F472B6;
+
+            /* Dizayn talabi #E2E8F0 — qora rejimda bu matn ustida
+               to'q bo'lib qolardi, shuning uchun yanada to'qroq qilinadi */
+            --card-hover-gray: #1E2C45;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* NAVBAR */
+        header {
+            background: var(--header-bg);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* SVG LOGO VECTOR FROM REFERENCE */
+        .logo-svg-box {
+            width: 48px;
+            height: 48px;
+            background: #001233;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(0, 18, 51, 0.3);
+            padding: 6px;
+        }
+
+        .logo-svg-box svg {
+            width: 100%;
+            height: 100%;
+            fill: #FFFFFF;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 6px;
+            background: var(--surface-2);
+            padding: 4px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            /* QAT'IY KAFOLAT: bo'limlar kontenti sig'masa, ular ICHIDA
+               suriladi. `min-width: 0` — flex shirinligini yo'qotmasligi
+               uchun (sukut bo'yicha `auto` bo'lib, o'z-o'zidan kengayib
+               qo'shnisini suradi). Natija: til va kirish tugmalari hech
+               qanday tarjimada ekran tashqarisiga chiqmaydi. */
+            min-width: 0;
+            overflow-x: auto;
+            scrollbar-width: none;
+            /* Faol bo'lim soyasi (4px offset + 14px blur) kesilmasligi uchun.
+               Tashqi manfiy margin vizual balandlikni o'z holicha tiklaydi. */
+            padding-bottom: 18px;
+            margin-bottom: -14px;
+        }
+
+        .nav-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .nav-tabs .nav-btn {
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        /* 2 harfli til kodi — faqat juda tor ekranda (`max-width: 480px`) */
+        #langCurrentCode {
+            display: none;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+        }
+
+        /* O'ng tomondagi harakatlar (til, kirish, e'lon) hech qachon
+           siqilmasin yoki ekran tashqarisiga surilmasin. */
+        .nav-actions,
+        .lang-switch {
+            flex-shrink: 0;
+        }
+
+        .nav-btn {
+            padding: 10px 18px;
+            border-radius: 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-btn:hover {
+            color: var(--navy-blue);
+            background: rgba(11, 37, 69, 0.08);
+        }
+
+        .nav-btn.active {
+            background: var(--tyomni-siniy);
+            color: white;
+            box-shadow: 0 4px 14px rgba(10, 25, 47, 0.35);
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.25s ease;
+        }
+
+        .btn-primary {
+            background: var(--tyomni-siniy);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--navy-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(10, 25, 47, 0.35);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border-strong);
+            color: var(--text);
+        }
+
+        .btn-outline:hover {
+            background: var(--surface-2);
+        }
+
+        /* BUTTONS INSIDE DARK CARDS (WHITE CONTOUR) */
+        .card-box .btn-outline {
+            background: transparent;
+            border: 1px solid #FFFFFF !important;
+            color: #FFFFFF !important;
+        }
+
+        .card-box:hover .btn-outline {
+            border-color: var(--tyomni-siniy) !important;
+            color: var(--tyomni-siniy) !important;
+        }
+
+        .card-box:hover .btn-outline:hover {
+            background: rgba(10, 25, 47, 0.1) !important;
+        }
+
+        /* TELEGRAM BUTTON */
+        .btn-telegram {
+            background: #0088cc !important;
+            color: #FFFFFF !important;
+            border: none !important;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-telegram:hover {
+            background: #0077b5 !important;
+            color: #FFFFFF !important;
+        }
+
+        /* ===== TELEGRAM BOG'LANISH BLOKI (profil modalidagi) ===== */
+        .tg-box {
+            margin-top: 18px;
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: var(--surface-2);
+        }
+
+        .tg-box-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .tg-box-head > .fa-telegram {
+            color: #0088cc;
+            font-size: 18px;
+        }
+
+        .tg-box-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin: 0 0 12px;
+        }
+
+        .tg-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tg-actions .btn {
+            flex: 0 0 auto;
+        }
+
+        /* "Ulangan" nishoni — yashiringan, JS ko'rsatadi */
+        .tg-badge {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 999px;
+            color: var(--ok);
+            background: var(--ok-soft);
+            border: 1px solid var(--ok-border);
+        }
+
+        /* 8 xonali kod — monospace, keng harflar bilan ajratilgan
+           (ko'rish va qo'lda kiritish oson bo'lsin). */
+        .tg-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 7px;
+            text-align: center;
+            color: var(--text);
+            background: var(--surface);
+            border: 1px dashed var(--border-strong);
+            border-radius: 12px;
+            padding: 12px 8px 12px 15px;   /* chapda letter-spacing uchun joy */
+            margin-bottom: 10px;
+            user-select: all;
+        }
+
+        .tg-linked {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tg-username {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        /* MAIN CONTAINER */
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* BENTO GRID HERO SECTION */
+        .hero-section {
+            display: block;
+            padding: 40px 24px;
+            max-width: 1280px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 20px;
+        }
+
+        .bento-card {
+            background: var(--card-dark);
+            border: 1px solid var(--card-dark-border);
+            border-radius: 24px;
+            padding: 28px;
+            min-height: 200px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .card-housing {
+            grid-column: span 8;
+            min-height: 240px;
+        }
+
+        .card-job {
+            grid-column: span 4;
+            min-height: 240px;
+        }
+
+        .card-skill {
+            grid-column: span 4;
+        }
+
+        .card-market {
+            grid-column: span 4;
+        }
+
+        .card-food {
+            grid-column: span 4;
+        }
+
+        /* HOVER EFFECT: OCH KULRANG (OQQA YAQUIN 15-20% O'ZGARISH) */
+        .bento-card:hover {
+            background: var(--card-hover-gray);
+            border-color: var(--border-strong);
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .bento-card:hover .bento-icon,
+        .bento-card:hover .bento-title {
+            color: var(--tyomni-siniy) !important;
+        }
+
+        .bento-icon {
+            font-size: 30px;
+            color: #FFFFFF;
+            transition: color 0.3s ease;
+        }
+
+        .bento-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #FFFFFF;
+            letter-spacing: -0.3px;
+            transition: color 0.3s ease;
+        }
+
+        /* HOUSING SPLIT VIEW */
+        .housing-view {
+            display: none;
+            height: calc(100vh - 73px);
+            width: 100%;
+        }
+
+        .housing-sidebar {
+            width: 38%;
+            min-width: 380px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .housing-map-container {
+            width: 62%;
+            height: 100%;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: var(--surface-4);
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-box input {
+            flex: 1;
+            background: var(--surface-3);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 10px;
+            color: var(--text);
+            outline: none;
+            font-size: 14px;
+        }
+
+        .housing-list {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .housing-item {
+            background: var(--card-dark);
+            border: 2px solid var(--card-dark-border);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            color: #FFFFFF;
+        }
+
+        /* HOVER HOUSING CARD: OCH KULRANG */
+        .housing-item:hover {
+            background: var(--card-hover-gray);
+            border-color: var(--border-strong);
+            box-shadow: 0 8px 24px rgba(10, 25, 47, 0.15);
+            color: var(--text);
+        }
+
+        .housing-item.active {
+            background: var(--surface) !important;
+            border-color: #3B82F6 !important;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25) !important;
+            color: var(--text) !important;
+        }
+
+        .housing-item:hover .housing-price,
+        .housing-item:hover .housing-title,
+        .housing-item:hover .feature-item strong,
+        .housing-item.active .housing-price,
+        .housing-item.active .housing-title,
+        .housing-item.active .feature-item strong {
+            color: var(--tyomni-siniy) !important;
+        }
+
+        .housing-item:hover .housing-location,
+        .housing-item:hover .feature-item,
+        .housing-item.active .housing-location,
+        .housing-item.active .feature-item {
+            color: var(--text-muted) !important;
+        }
+
+        .housing-img-box {
+            position: relative;
+            height: 180px;
+            width: 100%;
+        }
+
+        .housing-img-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .badge-type {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(10, 25, 47, 0.9);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .expand-img-btn {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(10, 25, 47, 0.85);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .housing-details {
+            padding: 16px;
+        }
+
+        .housing-price {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--info);
+            margin-bottom: 4px;
+            transition: color 0.25s ease;
+        }
+
+        .housing-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #FFFFFF;
+            transition: color 0.25s ease;
+        }
+
+        .housing-location {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.25s ease;
+        }
+
+        .verified-user {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--badge-green);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .housing-features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 14px;
+            transition: all 0.25s ease;
+        }
+
+        .housing-item:hover .housing-features,
+        .housing-item.active .housing-features {
+            background: var(--surface-2);
+            border-color: var(--border-strong);
+        }
+
+        .feature-item {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .feature-item strong {
+            display: block;
+            color: #FFFFFF;
+            font-size: 12px;
+            font-weight: 700;
+            transition: color 0.25s ease;
+        }
+
+        .housing-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .housing-actions button {
+            flex: 1;
+            justify-content: center;
+            padding: 10px 12px;
+            font-size: 13px;
+            border-radius: 10px;
+        }
+
+        /* CARDS SECTIONS */
+        .cards-section {
+            display: none;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 32px 24px;
+            width: 100%;
+        }
+
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .card-box {
+            background: var(--card-dark);
+            border: 1px solid var(--card-dark-border);
+            border-radius: 18px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.25s ease;
+            color: #FFFFFF;
+        }
+
+        /* HOVER GRID CARD: OCH KULRANG (OQQA YAQUIN 15-20%) */
+        .card-box:hover {
+            transform: translateY(-5px);
+            background: var(--card-hover-gray);
+            border-color: var(--border-strong);
+            box-shadow: 0 12px 28px rgba(10, 25, 47, 0.15);
+            color: var(--text);
+        }
+
+        .card-box:hover h3 {
+            color: var(--tyomni-siniy) !important;
+        }
+
+        .card-box:hover p {
+            color: var(--text-muted-2) !important;
+        }
+
+        .card-box:hover .meta-price {
+            color: var(--tyomni-siniy) !important;
+        }
+
+        .card-box-content {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            justify-content: space-between;
+        }
+
+        .card-img-top {
+            height: 180px;
+            width: 100%;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .card-tag {
+            align-self: flex-start;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--info);
+            margin-bottom: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.25s ease;
+        }
+
+        .card-box:hover .card-tag {
+            background: rgba(10, 25, 47, 0.1);
+            color: var(--tyomni-siniy);
+        }
+
+        /* SKELETON / LOADING */
+        .skeleton {
+            background: linear-gradient(90deg, #1E293B 25%, #334155 50%, #1E293B 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 12px;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 40px;
+            margin-bottom: 14px;
+            display: block;
+            opacity: 0.5;
+        }
+
+        /* AUTH / ACCOUNT */
+        .user-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(10, 25, 47, 0.06);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .user-chip .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-strong);
+        }
+
+        .user-chip.verified .dot {
+            background: var(--badge-green);
+        }
+
+        /* TABS (modal ichidagi qadamlar) */
+        .steps {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 18px;
+        }
+
+        .step {
+            flex: 1;
+            height: 4px;
+            border-radius: 4px;
+            background: var(--surface-4);
+        }
+
+        .step.active {
+            background: var(--tyomni-siniy);
+        }
+
+        .hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 10px;
+            min-height: 16px;
+            line-height: 1.5;
+        }
+
+        /* Xato matni ko'proq ko'rinishi uchun */
+        .hint.error {
+            color: var(--danger);
+            font-weight: 600;
+            background: var(--danger-soft);
+            border: 1px solid var(--danger-border);
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+
+        .hint.success {
+            color: var(--ok);
+        }
+
+        .field-error {
+            font-size: 12px;
+            color: var(--danger);
+            margin-top: 6px;
+        }
+
+        /* ===== PROFIL RASMI =================================================
+           Uch xil ko'rinishda bir xil usul:
+             1) `#avatarPreview` — profil modalidagi 88px li dumaloq ko'rinish
+             2) `#navAvatar`     — navbar'dagi 28px li mini avatar
+             3) `.card-avatar`   — e'lon/kartalarda (JS bilan chiziladi)
+           Rasm yo'q joyda Font Awesome `fa-user` ikonkasi ko'rinadi. */
+        .avatar-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+
+        .avatar-preview {
+            width: 88px;
+            height: 88px;
+            flex: 0 0 88px;
+            border-radius: 50%;
+            background: var(--surface-2);
+            border: 2px dashed var(--border-strong);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .avatar-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .avatar-preview .fa-user {
+            font-size: 32px;
+            color: var(--text-faint);
+        }
+
+        .avatar-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        /* Fayl tanlagich yashirin: "Rasm tanlash" tugmasi uni ochadi.
+           Aks holda ham maydon, ham tugma ko'rinib, chalkashuv chiqadi. */
+        #avatarInput {
+            display: none;
+        }
+
+        /* Navbar'dagi mini avatar. `hidden` atributi bilan ko'rinadi/
+           yashiriladi — JS `state.user.avatar` ga qaraydi. */
+        .nav-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex: 0 0 28px;
+            border: 1px solid var(--border);
+        }
+
+        /* Profil modalidagi rasm tanlagandan keyingi darhol ko'rinishi
+           uchun obyekt URL. Bu URL vaqtinchalik — saqlashdan keyin
+           serverdagi haqiqiy manzil bilan almashtiriladi. */
+        .avatar-preview img[data-temp="1"] {
+            opacity: 0.75;
+        }
+
+        .file-drop {
+            border: 2px dashed var(--border-strong);
+            border-radius: 12px;
+            padding: 22px;
+            text-align: center;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        .file-drop:hover,
+        .file-drop.drag {
+            border-color: var(--tyomni-siniy);
+            background: var(--surface-3);
+            color: var(--text);
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .preview-grid img {
+            width: 100%;
+            height: 70px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        /* CHAT PANEL */
+        .chat-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: min(420px, 100%);
+            height: 100%;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            z-index: 2500;
+            display: none;
+            flex-direction: column;
+            box-shadow: -10px 0 30px rgba(15, 23, 42, 0.08);
+        }
+
+        .chat-panel.active {
+            display: flex;
+        }
+
+        .chat-head {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 700;
+        }
+
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        /* Ochiq suhbat: sarqash + xabarlar */
+        .chat-thread {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .chat-thread[hidden] {
+            display: none;
+        }
+
+        .chat-thread-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chat-thread-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .chat-item {
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .chat-item:hover {
+            background: var(--surface-2);
+        }
+
+        .chat-item .who {
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .chat-item .prev {
+            font-size: 13px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-item .badge {
+            float: right;
+            background: var(--tyomni-siniy);
+            color: #fff;
+            border-radius: 10px;
+            font-size: 11px;
+            padding: 1px 7px;
+        }
+
+        .msg-row {
+            margin-bottom: 10px;
+            display: flex;
+        }
+
+        .msg-row.mine {
+            justify-content: flex-end;
+        }
+
+        .msg-bubble {
+            max-width: 78%;
+            padding: 9px 13px;
+            border-radius: 14px;
+            font-size: 14px;
+            background: var(--surface-2);
+            color: var(--text);
+            word-break: break-word;
+        }
+
+        .msg-row.mine .msg-bubble {
+            background: var(--tyomni-siniy);
+            color: #fff;
+        }
+
+        .msg-time {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
+
+        .msg-row.mine .msg-time {
+            text-align: right;
+        }
+
+        .chat-input {
+            border-top: 1px solid var(--border);
+            padding: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            border: 1px solid var(--border);
+            background: var(--surface-3);
+            border-radius: 12px;
+            padding: 11px 14px;
+            outline: none;
+        }
+
+        /* LIGHTBOX MODAL */
+        .lightbox-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lightbox-modal.active {
+            display: flex;
+        }
+
+        .lightbox-content {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 12px;
+        }
+
+        /* MODAL */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 25, 47, 0.65);
+            backdrop-filter: blur(6px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-body {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 32px;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 480px;
+            position: relative;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            background: var(--surface-3);
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 10px;
+            color: var(--text);
+            outline: none;
+        }
+
+        /* TOAST */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--tyomni-siniy);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 4000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* ===== Navbar moslashuvchanligi =====
+
+           MUAMMO: `.navbar` `flex-wrap: nowrap` (standart qiymat) va
+           `.nav-tabs` da `overflow` yo'q edi. Bo'lim matnlari uzunlashganda
+           butun navbar kengayib, o'ng tomondagi til va kirish tugmalari
+           ekran tashqarisiga chiqib ketardi hamda bosib bo'lmas edi.
+
+           O'lchovlar (`.navbar` max-width 1440px -> ichida 1392px joy):
+               to'liq nomlar + to'liq tugmalar:  RU 1880 | UZ 1631 | EN 1502
+               to'liq nomlar + ikonka tugmalar: RU 1446 | UZ 1299 | EN 1243
+               qisqa nomlar  + to'liq tugmalar:  RU 1494 | UZ 1421 | EN 1288
+               qisqa nomlar  + ikonka tugmalar:  RU 1053 | UZ 1077 | EN 1017
+
+           Yechim:
+             1. Tugmalar ikonkaga o'tadi -> bo'limlarning TO'LIQ nomlari
+                saqlanib qoladi, dizayn o'zgarmaydi.
+             2. `.nav-tabs` ga `min-width: 0` + `overflow-x: auto` — bu QAT'IY
+                KAFOLAT: kontent sig'masa, bo'limlar ichkarida suriladi,
+                lekin til tugmasi hech qachon ekran tashqarisiga chiqmaydi.
+             3. 1300px dan tor ekranda qisqa nomlar, 1180px dan tor ekranda
+                navbar ikki qatorga bo'linadi. */
+
+        /* Tugmalar: matni yashiriladi, ikonkasi qoladi (barcha ekranlarda).
+           DIQQAT: `#chatUnreadBadge` ham `span` — uni yashirmasligimiz kerak,
+           aks holda o'qilmagan xabar soni ko'rinmay qoladi.
+           `#navAuthText` ham chiqarilgan: "Kirish" yozvli bo'lishi kerak
+           (foydalanuvchi so'ragan). */
+        .nav-actions .btn > span:not(#chatUnreadBadge):not(#navAuthName):not(#navAuthText),
+        #navVerifyText {
+            display: none;
+        }
+
+        .nav-actions .btn {
+            padding: 10px 12px;
+        }
+
+        /* Rejim tugmasi: quyosh (yorug' fon) / oy (qora fon).
+           Doimiy kvadrat shakl; ikki ikonkadan biri `data-theme` ga
+           qarab ko'rinadi — JS faqat atributni almashtiradi, ikonkani
+           qayta chizmaydi. */
+        .theme-toggle {
+            width: 42px;
+            padding: 10px 0;
+            justify-content: center;
+        }
+
+        .theme-toggle .fa-moon {
+            display: none;
+        }
+
+        [data-theme="dark"] .theme-toggle .fa-sun {
+            display: none;
+        }
+
+        [data-theme="dark"] .theme-toggle .fa-moon {
+            display: inline-block;
+        }
+
+        /* Bo'lim tugmalari: 18px -> 14px padding (6 ta tugma = 48px tejaladi) */
+        .nav-tabs .nav-btn {
+            padding: 10px 14px;
+        }
+
+        /* Ikki qatorli rejim (<= 1180px): birinchi qatorga til/kirish/e'lon
+           tugmalari, ikkinchi qatorga bo'limlar. */
+        @media (max-width: 1180px) {
+            .navbar {
+                flex-wrap: wrap;
+                row-gap: 10px;
+                padding: 10px 14px;
+            }
+
+            .nav-tabs {
+                order: 2;
+                width: 100%;
+                justify-content: flex-start;
+                /* Sig'masa — ichkarida suriladi, tugmalar esa joyida qoladi. */
+                min-width: 0;
+                overflow-x: auto;
+                /* Faol bo'lim soyasi (4px offset + 14px blur) kesilmasligi
+                   uchun ichki bo'shliq. Tashqi manfiy margin vizual
+                   balandlikni tiklaydi. */
+                padding-bottom: 20px;
+                margin-bottom: -14px;
+            }
+
+            .nav-actions {
+                order: 1;
+                margin-left: auto;
+                gap: 8px;
+            }
+        }
+
+        /* Bo'lim nomlari: qisqa nom — standart (deyarli barcha ekranda sig'a
+           oladi), to'liq nom — faqat keng monitorlarda (>= 1600px).
+           O'lchov: qisqa nomlar RU 1053px | UZ 1077px | EN 1017px kerak,
+           to'liq nomlar esa RU 1463px — shuning uchun 1600px dan kichik
+           ekranda to'liq nomlar sig'maydi va oxirgi bo'lim yashirin qoladi. */
+        .nav-tabs .nav-full {
+            display: none;
+        }
+
+        .nav-tabs .nav-short {
+            display: inline;
+        }
+
+        @media (min-width: 1600px) {
+            .nav-tabs .nav-full {
+                display: inline;
+            }
+
+            .nav-tabs .nav-short {
+                display: none;
+            }
+        }
+
+        /* Boshqa bo'limlar (bento va uy-joy) — 900px */
+        @media (max-width: 900px) {
+            .bento-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card-housing,
+            .card-job,
+            .card-skill,
+            .card-market,
+            .card-food {
+                grid-column: span 1;
+            }
+
+            .housing-view {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .housing-sidebar {
+                width: 100%;
+                min-width: 100%;
+            }
+
+            .housing-map-container {
+                width: 100%;
+                height: 400px;
+            }
+        }
+
+        /* ===== Juda tor ekran (telefon, <= 480px) =====
+           900px qoidasi yetarli bo'lmadi: logo + 4 ta tugma + til
+           tugmasi 360px ga sig'maydi va kirish tugmasi ekran tashqarisiga
+           chiqib ketardi. Bu yerda til nomi o'rniga 2 harfli kod ko'rsatiladi
+           va oraliqlar kamaytiriladi. */
+        @media (max-width: 480px) {
+            .navbar {
+                gap: 8px;
+                padding: 8px 10px;
+            }
+
+            .nav-actions {
+                gap: 6px;
+            }
+
+            .nav-actions .btn {
+                padding: 9px 10px;
+            }
+
+            #langCurrentLabel {
+                display: none;
+            }
+
+            #langCurrentCode {
+                display: inline;
+            }
+
+            .lang-switch-btn {
+                padding: 8px 10px;
+            }
+        }
+
+        /* Juda kichik ekran (<= 360px, masalan iPhone SE 1) ---
+           360px da 6px yetishmay qolardi. */
+        @media (max-width: 360px) {
+            .nav-actions {
+                gap: 4px;
+            }
+
+            .nav-actions .btn {
+                padding: 8px;
+            }
+
+            .lang-switch-btn {
+                padding: 8px 8px;
+            }
+        }
+
+        /* ===== Til tanlash (i18n) ===== */
+        .lang-switch {
+            position: relative;
+        }
+
+        .lang-switch-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--surface-3);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .lang-switch-btn:hover {
+            border-color: var(--brand, var(--ok));
+        }
+
+        .lang-menu {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 6px);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, .12);
+            min-width: 150px;
+            overflow: hidden;
+            z-index: 900;
+            display: none;
+        }
+
+        .lang-menu.open {
+            display: block;
+        }
+
+        .lang-menu button {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 10px 14px;
+            border: 0;
+            background: transparent;
+            font-size: 14px;
+            color: var(--text);
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .lang-menu button:hover {
+            background: var(--surface-2);
+        }
+
+        .lang-menu button.active {
+            color: var(--brand, var(--ok));
+            font-weight: 700;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- CSRF token: `/i18n/setlang/` POST so'rovi uchun kerak.
+     Maxfiy shaklda yashirilgan, JS uni `csrftoken` cookie'sidan oladi. -->
+<form id="csrfForm" style="display:none;">{% csrf_token %}</form>
+
+<!-- NAVBAR -->
+<header>
+    <div class="navbar">
+        <div class="logo-container" onclick="showSection('home')">
+            <div class="logo-svg-box">
+                <svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M250 80 L60 170 L250 260 L440 170 Z"/>
+                    <path d="M410 200 L410 320" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+                    <circle cx="410" cy="335" r="15"/>
+                    <path
+                            d="M200 230 C 130 250, 130 350, 250 370 C 370 390, 370 470, 230 480 C 160 480, 110 430, 110 400"
+                            fill="none" stroke="#FFFFFF" stroke-width="50" stroke-linecap="round"/>
+                </svg>
+            </div>
+        </div>
+
+        <nav class="nav-tabs">
+            <button class="nav-btn active" id="btn-home" onclick="showSection('home')">
+                <i class="fa-solid fa-house"></i>
+                <span class="nav-full" data-i18n="nav.home">{% tt "nav.home" %}</span>
+                <span class="nav-short" data-i18n="nav.home.short">{% tt "nav.home.short" %}</span>
+            </button>
+            <button class="nav-btn" id="btn-housing" onclick="showSection('housing')">
+                <i class="fa-solid fa-bed"></i>
+                <span class="nav-full" data-i18n="nav.housing">{% tt "nav.housing" %}</span>
+                <span class="nav-short" data-i18n="nav.housing.short">{% tt "nav.housing.short" %}</span>
+            </button>
+            <button class="nav-btn" id="btn-jobs" onclick="showSection('jobs')">
+                <i class="fa-solid fa-briefcase"></i>
+                <span class="nav-full" data-i18n="nav.jobs">{% tt "nav.jobs" %}</span>
+                <span class="nav-short" data-i18n="nav.jobs.short">{% tt "nav.jobs.short" %}</span>
+            </button>
+            <button class="nav-btn" id="btn-skills" onclick="showSection('skills')">
+                <i class="fa-solid fa-right-left"></i>
+                <span class="nav-full" data-i18n="nav.skills">{% tt "nav.skills" %}</span>
+                <span class="nav-short" data-i18n="nav.skills.short">{% tt "nav.skills.short" %}</span>
+            </button>
+            <button class="nav-btn" id="btn-market" onclick="showSection('market')">
+                <i class="fa-solid fa-store"></i>
+                <span class="nav-full" data-i18n="nav.market">{% tt "nav.market" %}</span>
+                <span class="nav-short" data-i18n="nav.market.short">{% tt "nav.market.short" %}</span>
+            </button>
+            <button class="nav-btn" id="btn-food" onclick="showSection('food')">
+                <i class="fa-solid fa-utensils"></i>
+                <span class="nav-full" data-i18n="nav.food">{% tt "nav.food" %}</span>
+                <span class="nav-short" data-i18n="nav.food.short">{% tt "nav.food.short" %}</span>
+            </button>
+        </nav>
+
+        <div class="nav-actions">
+            <button class="btn btn-primary" id="navPostBtn" onclick="openPostModal()">
+                <i class="fa-solid fa-plus"></i> <span data-i18n="post.submit">{% tt "post.submit" %}</span>
+            </button>
+            <button class="btn btn-outline" id="navChatBtn" onclick="toggleChat()" style="display:none;">
+                <i class="fa-solid fa-comment-dots"></i> <span data-i18n="nav.chat">{% tt "nav.chat" %}</span>
+                <span id="chatUnreadBadge"></span>
+            </button>
+            <button class="user-chip" id="navVerifyBtn" onclick="openVerifyModal()">
+                <span class="dot"></span> <span id="navVerifyText" data-i18n="nav.verify">{% tt "nav.verify" %}</span>
+            </button>
+
+            <!-- Ikki holat bitta tugmada: mehmon ("Kirish") va kiritilgan
+                 foydalanuvchi ismi. `renderAuthState()` faqat ko'rinishini
+                 almashtiradi, `data-i18n` esa joyida qoladi — shuning uchun
+                 til almashganda `applyI18n()` "Kirish" ni tarjima qilaveradi.
+
+                 Tugma TIL TUGMASIDAN OLDINDA turadi (foydalanuvcha
+                 so'ragan) va matni yashirilmaydi — "Kirish" yozvli
+                 ko'rinishi kerak. -->
+            <button class="btn btn-outline" id="navAuthBtn" onclick="openAuthModal()">
+                <img class="nav-avatar" id="navAvatar" alt="" hidden>
+                <i class="fa-solid fa-right-to-bracket" id="navAuthIcon"></i>
+                <span data-i18n="nav.login" id="navAuthText">{% tt "nav.login" %}</span>
+                <span id="navAuthName" hidden></span>
+            </button>
+
+            <!-- Rejim: yorug' (quyosh) <-> qora (oy) -->
+            <button class="btn btn-outline theme-toggle" id="themeToggleBtn" type="button"
+                    onclick="toggleTheme()" aria-pressed="false"
+                    data-i18n-title="theme.toDark">
+                <i class="fa-solid fa-sun"></i>
+                <i class="fa-solid fa-moon"></i>
+            </button>
+
+            <!-- Til tanlash -->
+            <div class="lang-switch" id="langSwitch">
+                <button class="lang-switch-btn" id="langSwitchBtn" type="button"
+                        aria-haspopup="true" aria-expanded="false" data-i18n-title="lang.switch">
+                    <i class="fa-solid fa-globe"></i>
+                    <span id="langCurrentLabel">O'zbekcha</span>
+                    <span id="langCurrentCode" aria-hidden="true"></span>
+                    <i class="fa-solid fa-chevron-down" style="font-size:10px;"></i>
+                </button>
+                <div class="lang-menu" id="langMenu" role="menu"></div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- MAIN CONTAINER -->
+<div class="main-container">
+
+    <!-- 1. BOSH SAHIFA (BENTO GRID) -->
+    <section id="sec-home" class="hero-section">
+        <div class="bento-grid">
+            <div class="bento-card card-housing" onclick="showSection('housing')">
+                <div class="bento-icon"><i class="fa-solid fa-house"></i></div>
+                <div class="bento-title" data-i18n="home.housing">{% tt "home.housing" %}</div>
+            </div>
+
+            <div class="bento-card card-job" onclick="showSection('jobs')">
+                <div class="bento-icon"><i class="fa-solid fa-briefcase"></i></div>
+                <div class="bento-title" data-i18n="nav.jobs">{% tt "nav.jobs" %}</div>
+            </div>
+
+            <div class="bento-card card-skill" onclick="showSection('skills')">
+                <div class="bento-icon"><i class="fa-solid fa-right-left"></i></div>
+                <div class="bento-title" data-i18n="nav.skills">{% tt "nav.skills" %}</div>
+            </div>
+
+            <div class="bento-card card-market" onclick="showSection('market')">
+                <div class="bento-icon"><i class="fa-solid fa-bag-shopping"></i></div>
+                <div class="bento-title" data-i18n="nav.market">{% tt "nav.market" %}</div>
+            </div>
+
+            <div class="bento-card card-food" onclick="showSection('food')">
+                <div class="bento-icon"><i class="fa-solid fa-utensils"></i></div>
+                <div class="bento-title" data-i18n="nav.food">{% tt "nav.food" %}</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2. HOUSING SECTION -->
+    <section id="sec-housing" class="housing-view">
+        <div class="housing-sidebar">
+            <div class="sidebar-header">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="{% tt "housing.searchPlaceholder" %}"
+                           data-i18n-placeholder="housing.searchPlaceholder"
+                           oninput="debouncedLoad()">
+                    <select id="typeFilter"
+                            style="background: var(--surface-3); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 10px;"
+                            onchange="loadListings()">
+                        <option value="" data-i18n="housing.allTypes">{% tt "housing.allTypes" %}</option>
+                        <option value="room" data-i18n="housing.typeRoom">{% tt "housing.typeRoom" %}</option>
+                        <option value="bedspace" data-i18n="housing.typeBedspace">{% tt "housing.typeBedspace" %}</option>
+                        <option value="whole_apartment" data-i18n="housing.typeApartment">{% tt "housing.typeApartment" %}</option>
+                    </select>
+                    <select id="cityFilter"
+                            style="background: var(--surface-3); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0 10px;"
+                            onchange="loadListings()">
+                        <option value="" data-i18n="housing.allCities">{% tt "housing.allCities" %}</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="housing-list" id="housingListContainer"></div>
+        </div>
+
+        <div class="housing-map-container">
+            <div id="map"></div>
+        </div>
+    </section>
+
+    <!-- 3. YOUNG JOB SECTION -->
+    <section id="sec-jobs" class="cards-section">
+        <h2
+                style="font-size: 26px; margin-bottom: 24px; color: var(--tyomni-siniy); display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid fa-briefcase"></i> <span data-i18n="jobs.title">{% tt "jobs.title" %}</span>
+        </h2>
+        <div class="grid-cards" id="jobsGrid"></div>
+    </section>
+
+    <!-- 4. SKILL EXCHANGE SECTION -->
+    <section id="sec-skills" class="cards-section">
+        <h2
+                style="font-size: 26px; margin-bottom: 24px; color: var(--tyomni-siniy); display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid fa-right-left"></i> <span data-i18n="skills.title">{% tt "skills.title" %}</span>
+        </h2>
+        <div class="grid-cards" id="skillsGrid"></div>
+    </section>
+
+    <!-- 5. MARKET SECTION -->
+    <section id="sec-market" class="cards-section">
+        <h2
+                style="font-size: 26px; margin-bottom: 24px; color: var(--tyomni-siniy); display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid fa-store"></i> <span data-i18n="market.title">{% tt "market.title" %}</span>
+        </h2>
+        <div class="grid-cards" id="marketGrid"></div>
+    </section>
+
+    <!-- 6. FOOD SECTION -->
+    <section id="sec-food" class="cards-section">
+        <h2
+                style="font-size: 26px; margin-bottom: 24px; color: var(--tyomni-siniy); display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid fa-utensils"></i> <span data-i18n="food.title">{% tt "food.title" %}</span>
+        </h2>
+        <div class="grid-cards" id="foodGrid"></div>
+    </section>
+
+</div>
+
+<!-- LIGHTBOX MODAL -->
+<div class="lightbox-modal" id="lightboxModal" onclick="closeLightbox()">
+    <img class="lightbox-content" id="lightboxImg" src="">
+</div>
+
+<!-- POST AD MODAL -->
+<div class="modal" id="postModal">
+    <div class="modal-body" style="max-width: 560px; max-height: 90vh; overflow-y: auto;">
+        <i class="fa-solid fa-xmark close-modal" onclick="closeModal('postModal')"></i>
+        <h3 style="margin-bottom: 16px;"><i class="fa-solid fa-house" style="color: var(--badge-green);"></i>
+            <span data-i18n="post.title">{% tt "post.title" %}</span></h3>
+
+        <div class="steps">
+            <div class="step active" id="step1"></div>
+            <div class="step" id="step2"></div>
+        </div>
+
+        <form id="listingForm" onsubmit="submitListing(event)">
+            <div class="form-group">
+                <label data-i18n="post.titleLabel">{% tt "post.titleLabel" %}</label>
+                <input type="text" id="fTitle" required maxlength="120"
+                       placeholder="{% tt "post.titlePlaceholder" %}"
+                       data-i18n-placeholder="post.titlePlaceholder">
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.description">{% tt "post.description" %}</label>
+                <textarea id="fDescription" rows="3" required maxlength="5000"
+                          placeholder="{% tt "post.descriptionPlaceholder" %}"
+                          data-i18n-placeholder="post.descriptionPlaceholder"></textarea>
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.type">{% tt "post.type" %}</label>
+                <select id="fType" required>
+                    <option value="room" data-i18n="post.typeRoom">{% tt "post.typeRoom" %}</option>
+                    <option value="bedspace" data-i18n="post.typeBedspace">{% tt "post.typeBedspace" %}</option>
+                    <option value="whole_apartment" data-i18n="post.typeApartment">{% tt "post.typeApartment" %}</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.price">{% tt "post.price" %}</label>
+                <input type="number" id="fPrice" required min="1000" step="1000" placeholder="{% tt "housing.pricePlaceholder" %}"
+                       data-i18n-placeholder="housing.pricePlaceholder">
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.city">{% tt "post.city" %}</label>
+                <input type="text" id="fCity" required placeholder="{% tt "post.cityPlaceholder" %}" value="Toshkent"
+                       data-i18n-placeholder="post.cityPlaceholder">
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.district">{% tt "post.district" %}</label>
+                <input type="text" id="fDistrict" placeholder="{% tt "housing.districtPlaceholder" %}"
+                       data-i18n-placeholder="housing.districtPlaceholder">
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.rooms">{% tt "post.rooms" %}</label>
+                <input type="number" id="fRooms" min="1" max="20" placeholder="{% tt "post.roomsPlaceholder" %}"
+                       data-i18n-placeholder="post.roomsPlaceholder">
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.amenities">{% tt "post.amenities" %}</label>
+                <div id="amenityBox" style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <span style="font-size:13px; color:var(--text-muted);" data-i18n="common.loading">{% tt "common.loading" %}</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.photosLabel">{% tt "post.photosLabel" %}</label>
+                <div class="file-drop" id="fileDrop" onclick="document.getElementById('fImages').click()">
+                    <i class="fa-solid fa-cloud-arrow-up"></i><br>
+                    <span data-i18n="post.pickPhotos">{% tt "post.pickPhotos" %}</span>
+                </div>
+                <input type="file" id="fImages" multiple accept="image/jpeg,image/png,image/webp"
+                       style="display:none;" onchange="onFilesPicked()">
+                <div class="preview-grid" id="previewGrid"></div>
+                <div class="field-error" id="imgError"></div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="listingSubmit"
+                    style="width:100%; justify-content:center;">
+                <i class="fa-solid fa-check"></i> <span data-i18n="post.submit">{% tt "post.submit" %}</span>
+            </button>
+            <div class="hint" id="listingHint"></div>
+        </form>
+    </div>
+</div>
+
+<!-- AUTH MODAL (SMS OTP) -->
+<div class="modal" id="authModal">
+    <div class="modal-body">
+        <i class="fa-solid fa-xmark close-modal" onclick="closeModal('authModal')"></i>
+        <h3 style="margin-bottom: 6px;"><i class="fa-solid fa-mobile-screen"
+                                        style="color: var(--badge-green);"></i> <span data-i18n="auth.title">{% tt "auth.title" %}</span></h3>
+        <div class="steps">
+            <div class="step active" id="authStep1"></div>
+            <div class="step" id="authStep2"></div>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+            <span data-i18n="auth.subtitle">{% tt "auth.subtitle" %}</span></p>
+
+        <!-- 1-qadam: telefon -->
+        <div id="authPhoneBlock">
+            <div class="form-group">
+                <label data-i18n="auth.phone">{% tt "auth.phone" %}</label>
+                <input type="tel" id="aPhone" placeholder="{% tt "auth.phonePlaceholder" %}" autocomplete="tel"
+                       data-i18n-placeholder="auth.phonePlaceholder"
+                       inputmode="tel" oninput="formatPhoneInput(this)"
+                       onblur="validatePhoneField(this)">
+                <small id="aPhoneHint"
+                       style="display:block; margin-top:6px; font-size:12px; color:var(--text-muted);">
+                    12 xonali: <b>+998</b> + operator kodi (90, 91, 93, 94, 95, 97, 98, 99, 20,
+                    33, 36, 50, 55, 77, 80, 87, 88, 92 va shaharlar: 61, 65, 66, 69, 71–79)
+                    + 7 xonali raqam. Masalan <b>+998 90 123 45 67</b>.
+                </small>
+            </div>
+            <div class="form-group">
+                <label data-i18n="auth.fullName">{% tt "auth.fullName" %}</label>
+                <input type="text" id="aFullName" placeholder="{% tt "auth.fullNamePlaceholder" %}"
+                       data-i18n-placeholder="auth.fullNamePlaceholder">
+            </div>
+            <div class="form-group">
+                <label data-i18n="auth.universityEmailHint">{% tt "auth.universityEmailHint" %}</label>
+                <input type="email" id="aEmail" placeholder="ali@uzswlu.uz">
+            </div>
+            <button class="btn btn-primary" style="width:100%; justify-content:center;"
+                    onclick="sendOtp()"><span data-i18n="auth.sendCode">{% tt "auth.sendCode" %}</span>
+            </button>
+        </div>
+
+        <!-- 2-qadam: kod -->
+        <div id="authCodeBlock" style="display:none;">
+            <div class="form-group">
+                <label data-i18n="auth.code">{% tt "auth.code" %}</label>
+                <input type="text" id="aCode" placeholder="{% tt "auth.codePlaceholder" %}" inputmode="numeric" maxlength="8"
+                       data-i18n-placeholder="auth.codePlaceholder">
+            </div>
+            <button class="btn btn-primary" style="width:100%; justify-content:center;"
+                    onclick="verifyOtp()"><span data-i18n="auth.verifyLogin">{% tt "auth.verifyLogin" %}</span>
+            </button>
+            <div style="display:flex; justify-content:space-between; margin-top:12px;">
+                <button class="btn btn-outline" style="font-size:12px; padding:7px 12px;"
+                        onclick="backToPhone()"><span data-i18n="auth.changeNumber">{% tt "auth.changeNumber" %}</span>
+                </button>
+                <button class="btn btn-outline" style="font-size:12px; padding:7px 12px;"
+                        id="aResendBtn" onclick="sendOtp()"><span data-i18n="auth.resend">{% tt "auth.resend" %}</span>
+                </button>
+            </div>
+        </div>
+        <div class="hint" id="authHint"></div>
+    </div>
+</div>
+
+<!-- VERIFY MODAL (universitet email orqali tasdiqlash) -->
+<div class="modal" id="verifyModal">
+    <div class="modal-body">
+        <i class="fa-solid fa-xmark close-modal" onclick="closeModal('verifyModal')"></i>
+        <h3 style="margin-bottom: 8px;"><i class="fa-solid fa-shield-check"
+                                           style="color: var(--badge-green);"></i>
+            <span data-i18n="verify.title">{% tt "verify.title" %}</span></h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+            <span data-i18n="verify.description">{% tt "verify.description" %}</span></p>
+
+        <div id="verifyEmailBlock">
+            <div class="form-group">
+                <label data-i18n="verify.email">{% tt "verify.email" %}</label>
+                <input type="email" id="vEmail" placeholder="ali@uzswlu.uz">
+            </div>
+            <button class="btn btn-primary" style="width:100%; justify-content:center;"
+                    onclick="sendVerifyCode()"><span data-i18n="verify.sendCode">{% tt "verify.sendCode" %}</span>
+            </button>
+        </div>
+
+        <div id="verifyCodeBlock" style="display:none;">
+            <div class="form-group">
+                <label data-i18n="verify.code">{% tt "verify.code" %}</label>
+                <input type="text" id="vCode" placeholder="{% tt "auth.codePlaceholder" %}" inputmode="numeric" maxlength="8"
+                       data-i18n-placeholder="auth.codePlaceholder">
+            </div>
+            <button class="btn btn-primary" style="width:100%; justify-content:center;"
+                    onclick="confirmVerifyCode()"><span data-i18n="verify.confirm">{% tt "verify.confirm" %}</span>
+            </button>
+        </div>
+        <div class="hint" id="verifyHint"></div>
+    </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div class="modal" id="profileModal">
+    <div class="modal-body">
+        <i class="fa-solid fa-xmark close-modal" onclick="closeModal('profileModal')"></i>
+        <h3 style="margin-bottom: 16px;" data-i18n="nav.profile">{% tt "nav.profile" %}</h3>
+
+        <!-- Profil rasmi: rasmni tanlash, ko'rish va o'chirish.
+             `#avatarInput` yashirin — tugma orqali ochiladi, shunda
+             fayl tanlagich faqat "rasm" turini ko'rsatadi. -->
+        <div class="avatar-row">
+            <div class="avatar-preview" id="avatarPreview">
+                <img id="avatarImg" alt="" hidden>
+                <i class="fa-solid fa-user" id="avatarIcon"></i>
+            </div>
+            <div class="avatar-actions">
+                <input type="file" id="avatarInput" accept="image/png,image/jpeg,image/webp"
+                       onchange="previewAvatar(this)">
+                <button class="btn btn-outline" type="button" onclick="$('avatarInput').click()">
+                    <i class="fa-solid fa-camera"></i>
+                    <span data-i18n="profile.pickPhoto">{% tt "profile.pickPhoto" %}</span>
+                </button>
+                <button class="btn btn-outline" type="button" id="avatarRemoveBtn"
+                        onclick="removeAvatar()" style="display:none;">
+                    <i class="fa-solid fa-trash"></i>
+                    <span data-i18n="profile.removePhoto">{% tt "profile.removePhoto" %}</span>
+                </button>
+                <div class="hint" style="width:100%;" data-i18n="profile.photoHint">{% tt "profile.photoHint" %}</div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label data-i18n="profile.fullName">{% tt "profile.fullName" %}</label>
+            <input type="text" id="pFullName">
+        </div>
+        <div class="form-group">
+            <label data-i18n="profile.emailHint">{% tt "profile.emailHint" %}</label>
+            <input type="email" id="pEmail" placeholder="{% tt "auth.emailPlaceholder" %}"
+                   data-i18n-placeholder="auth.emailPlaceholder">
+        </div>
+        <div class="form-group">
+            <label data-i18n="profile.city">{% tt "profile.city" %}</label>
+            <input type="text" id="pCity">
+        </div>
+        <div class="form-group">
+            <label data-i18n="profile.university">{% tt "profile.university" %}</label>
+            <input type="text" id="pUniversity">
+        </div>
+        <div class="form-group">
+            <label data-i18n="profile.faculty">{% tt "profile.faculty" %}</label>
+            <input type="text" id="pFaculty">
+        </div>
+        <div class="form-group">
+                <label data-i18n="profile.bio">{% tt "profile.bio" %}</label>
+                <textarea id="pBio" rows="2" placeholder="{% tt "profile.bioPlaceholder" %}"
+                          data-i18n-placeholder="profile.bioPlaceholder"></textarea>
+        </div>
+        <button class="btn btn-primary" style="width:100%; justify-content:center;"
+                onclick="saveProfile()"><span data-i18n="profile.save">{% tt "profile.save" %}</span>
+        </button>
+        <div class="hint" id="profileHint"></div>
+
+        <!-- ================= TELEGRAM BILAN BOG'LANISH =================
+             Oqim: `tgLinkTelegram()` kod oladi va Telegram havolasini
+             ochadi. Bot kodni olgach, `tgPollStatus()` orqali holat
+             tekshiriladi va matn yangilanadi. Barcha matnlar `data-i18n`
+             orqali tarjima qilinadi. -->
+        <div class="tg-box" id="tgBox">
+            <div class="tg-box-head">
+                <i class="fa-brands fa-telegram"></i>
+                <span data-i18n="profile.telegram">{% tt "profile.telegram" %}</span>
+                <span class="tg-badge" id="tgBadge" style="display:none;">
+                    <i class="fa-solid fa-check"></i>
+                    <span data-i18n="profile.telegramConnected">{% tt "profile.telegramConnected" %}</span>
+                </span>
+            </div>
+            <p class="tg-box-hint" data-i18n="profile.telegramHint">{% tt "profile.telegramHint" %}</p>
+
+            <!-- Bog'lanmagan holat: "Telegram'ga ulash" tugmasi -->
+            <div class="tg-actions" id="tgIdleActions">
+                <button class="btn btn-telegram" type="button" onclick="tgLinkTelegram()">
+                    <i class="fa-brands fa-telegram"></i>
+                    <span data-i18n="profile.telegramConnect">{% tt "profile.telegramConnect" %}</span>
+                </button>
+            </div>
+
+            <!-- Kutish holati: kod ko'rsatiladi, "Telegram'da ochish" + bekor qilish -->
+            <div class="tg-waiting" id="tgWaiting" style="display:none;">
+                <div class="tg-code" id="tgCode">------</div>
+                <p class="tg-box-hint" data-i18n="profile.telegramWaiting">{% tt "profile.telegramWaiting" %}</p>
+                <div class="tg-actions">
+                    <a class="btn btn-telegram" id="tgOpenLink" href="#" target="_blank" rel="noopener noreferrer">
+                        <i class="fa-brands fa-telegram"></i>
+                        <span data-i18n="profile.telegramOpen">{% tt "profile.telegramOpen" %}</span>
+                    </a>
+                    <button class="btn btn-outline" type="button" onclick="tgCancelLink()">
+                        <span data-i18n="common.cancel">{% tt "common.cancel" %}</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Ulangan holat: @username + "Uzish" tugmasi -->
+            <div class="tg-linked" id="tgLinkedBox" style="display:none;">
+                <span class="tg-username" id="tgUsername"></span>
+                <button class="btn btn-outline" type="button" onclick="tgUnlink()">
+                    <i class="fa-solid fa-link-slash"></i>
+                    <span data-i18n="profile.telegramUnlink">{% tt "profile.telegramUnlink" %}</span>
+                </button>
+            </div>
+            <div class="hint" id="tgHint"></div>
+        </div>
+
+        <button class="btn btn-outline" style="width:100%; justify-content:center; margin-top:12px;"
+                onclick="logout()"><span data-i18n="nav.logout">{% tt "nav.logout" %}</span>
+        </button>
+    </div>
+</div>
+
+<!-- CHAT PANEL -->
+<div class="chat-panel" id="chatPanel">
+    <div class="chat-head">
+        <span><i class="fa-solid fa-comment-dots"></i> <span data-i18n="chat.head">{% tt "chat.head" %}</span></span>
+        <i class="fa-solid fa-xmark" style="cursor:pointer;" onclick="toggleChat()"></i>
+    </div>
+    <!-- Ikki ko'rinish: suhbatlar ro'yxati va ochiq suhbat.
+         Bitta konteynerda aralashtirilsa, `sendMessage()` dan keyin
+         `loadConversations()` ro'yxatni qayta chizadi va foydalanuvchi
+         yozgan xabari ko'zidan yo'qoladi. -->
+    <div class="chat-list" id="chatList"></div>
+    <div class="chat-thread" id="chatThread" hidden>
+        <div class="chat-thread-head">
+            <button class="btn btn-outline" style="padding:8px 12px;" onclick="closeConversation()"
+                    aria-label="{% tt "chat.back" %}">
+                <i class="fa-solid fa-chevron-left"></i>
+                <span data-i18n="chat.back">{% tt "chat.back" %}</span>
+            </button>
+            <strong id="chatThreadPartner"></strong>
+        </div>
+        <div class="chat-thread-body" id="chatThreadBody"></div>
+    </div>
+    <div class="chat-input" id="chatInputRow" style="display:none;">
+        <input type="text" id="msgInput" placeholder="{% tt "chat.placeholder" %}"
+               data-i18n-placeholder="chat.placeholder"
+               onkeydown="if(event.key==='Enter')sendMessage()">
+        <button class="btn btn-primary" style="padding:10px 14px;" onclick="sendMessage()"
+                aria-label="{% tt "chat.send" %}">
+            <i class="fa-solid fa-paper-plane"></i>
+        </button>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+    <i class="fa-solid fa-circle-check" style="font-size: 20px; color: var(--badge-green);"></i>
+    <span id="toastText" data-i18n="toast.default">{% tt "toast.default" %}</span>
+</div>
+
+<!-- Leaflet JS for Map -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    /* =========================================================================
+       I18N RUNTIME — 3 til (uz / ru / en)
+       -------------------------------------------------------------------------
+       Barcha kataloglar sahifa yuklanganda `<script id="stugo-i18n-catalogs">`
+       ichida keladi. Shu sababli tilni almashtirish **serverga so'rov
+       yubormaydi** — faqat DOM yangilanadi (tez, sahifa qayta yuklanmaydi).
+       Cookie serverga yozilishi uchun `/i18n/setlang/` ga yuboriladi, lekin
+       javobni kutib o'tirmaydi.
+       ========================================================================= */
+    const I18N = (() => {
+        const FALLBACK = 'uz';
+
+        const readJson = (id, fallback) => {
+            const el = document.getElementById(id);
+            if (!el) return fallback;
+            try { return JSON.parse(el.textContent); } catch (e) { return fallback; }
+        };
+
+        // {uz: {...}, ru: {...}, en: {...}} — serverdan kelgan barcha tillar
+        let CATALOGS = readJson('stugo-i18n-catalogs', {});
+        let LANGUAGES = readJson('stugo-languages', []);
+        let current = readJson('stugo-current-lang', FALLBACK);
+
+        /** Kalit -> matn. Topilmasa o'zbekcha, u ham topilmasa kalitning o'zi. */
+        function lookup(key) {
+            if (!key) return '';
+            const own = (CATALOGS[current] || {})[key];
+            if (own) return own;
+            const base = (CATALOGS[FALLBACK] || {})[key];
+            if (base) return base;
+            return key;
+        }
+
+        /**
+         * Tarjimani oladi va `{name}` placeholder'larini to'ldiradi.
+         *     t('auth.welcome', {name: 'Ali'})  ->  "Xush kelibsiz, Ali"
+         */
+        function t(key, params) {
+            const text = lookup(key);
+            if (!params) return text;
+            return text.replace(/\{(\w+)\}/g, (m, name) => (
+                params[name] === undefined || params[name] === null ? m : String(params[name])
+            ));
+        }
+
+        /**
+         * DOM'dagi `data-i18n` belgilarini joriy tilga moslaydi.
+         * Qo'llaniladigan atributlar:
+         *   data-i18n            -> textContent
+         *   data-i18n-html       -> innerHTML (faqat ishonchli server matni uchun)
+         *   data-i18n-placeholder-> placeholder
+         *   data-i18n-title      -> title
+         *   data-i18n-aria       -> aria-label
+         */
+        function applyI18n(root) {
+            const scope = root || document;
+            const ATTRS = [
+                ['[data-i18n]', 'textContent'],
+                ['[data-i18n-html]', 'innerHTML'],
+                ['[data-i18n-placeholder]', 'placeholder'],
+                ['[data-i18n-title]', 'title'],
+                ['[data-i18n-aria]', 'aria-label'],
+            ];
+            ATTRS.forEach(([selector, prop]) => {
+                scope.querySelectorAll(selector).forEach((el) => {
+                    const key = el.getAttribute(selector.slice(1, -1));
+                    if (!key) return;
+                    const params = el.dataset.i18nParams ? JSON.parse(el.dataset.i18nParams) : null;
+                    el[prop] = t(key, params);
+                });
+            });
+        }
+
+        /** `csrftoken` cookie'sidan CSRF token o'qiydi (Django shu nomdan foydalanadi). */
+        function csrfToken() {
+            const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        }
+
+        /** Tilni o'zgartiradi: DOM yangilanadi, cookie serverga yuboriladi. */
+        async function setLang(code) {
+            if (!CATALOGS[code]) return;
+            current = code;
+            document.documentElement.lang = code;
+            applyI18n();
+            renderLangMenu();
+            // Dinamik chizilgan qismlarni (karta, chat, nav) qayta chizish.
+            langListeners.forEach((fn) => {
+                try { fn(code); } catch (e) { /* bitta render xatosi boshqalarini to'xtatmasin */ }
+            });
+            try {
+                // Cookie'ni yangilash — navbatdagi sahifa yuklanishida ham
+                // tanlangan til saqlansin. Xato bo'lsa ham interfeys ishlaydi.
+                await fetch('/i18n/setlang/', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken(),
+                        'X-StuGo-Language': code,
+                    },
+                    body: 'lang=' + encodeURIComponent(code),
+                });
+            } catch (e) { /* tarmoq xatosi tilni o'zgartirishga to'sqinlik qilmasin */ }
+        }
+
+        function langName(code) {
+            const found = LANGUAGES.find((l) => l.code === code);
+            return found ? found.name : code;
+        }
+
+        /* Til o'zgarganda chaqiriladigan funksiyalar ro'yxati.
+           `data-i18n` belgilari FAQAT statik matnlarni qamrab oladi — JS bilan
+           chizilgan kartalar (e'lonlar, ish, skill, market, food, chat) til
+           almashganda qayta chizilishi kerak. Shu uchun bu "hook" API. */
+        const langListeners = [];
+        function onLangChange(fn) {
+            if (typeof fn === 'function') langListeners.push(fn);
+        }
+
+        function renderLangMenu() {
+            const label = document.getElementById('langCurrentLabel');
+            if (label) label.textContent = langName(current);
+            // Juda tor ekranda (telefon) to'liq nom sig'maydi — faqat
+            // 2 harfli kod ko'rsatiladi (masalan "RU").
+            const codeEl = document.getElementById('langCurrentCode');
+            if (codeEl) codeEl.textContent = String(current).toUpperCase();
+
+            const menu = document.getElementById('langMenu');
+            if (!menu) return;
+            menu.innerHTML = '';
+            LANGUAGES.forEach((l) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.setAttribute('role', 'menuitem');
+                btn.className = l.code === current ? 'active' : '';
+                btn.innerHTML = '<span>' + esc(l.name) + '</span>' +
+                    (l.code === current ? '<i class="fa-solid fa-check"></i>' : '');
+                btn.addEventListener('click', () => {
+                    setLang(l.code);
+                    menu.classList.remove('open');
+                    document.getElementById('langSwitchBtn')?.setAttribute('aria-expanded', 'false');
+                });
+                menu.appendChild(btn);
+            });
+        }
+
+        function initLangSwitch() {
+            const btn = document.getElementById('langSwitchBtn');
+            const menu = document.getElementById('langMenu');
+            if (!btn || !menu) return;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const open = menu.classList.toggle('open');
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+            document.addEventListener('click', () => {
+                menu.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            });
+            renderLangMenu();
+        }
+
+        return {
+            t, setLang, applyI18n, renderLangMenu, initLangSwitch, onLangChange,
+            get current() { return current; },
+            get languages() { return LANGUAGES; },
+            // Bitta aniq kalitni tekshirish (o'z tili + fallback).
+            // `apiError()` server yuborgan `code` ni shu yo'l bilan
+            // tarjima qiladi.
+            has: function (key) {
+                if (!key) return false;
+                if (CATALOGS[current] && CATALOGS[current][key]) return true;
+                return !!(CATALOGS[FALLBACK] && CATALOGS[FALLBACK][key]);
+            },
+        };
+    })();
+
+    // Global qulaylik: boshqa JS kod `t('...')` ishlatishi mumkin.
+    const t = I18N.t;
+    const setLang = I18N.setLang;
+
+    /* =========================================================================
+       REJIM (yorug' fon / qora fon)
+
+       Barcha ranglar CSS o'zgaruvchilarida (`:root` va
+       `[data-theme="dark"]`). JS faqat `<html data-theme="...">` atributini
+       almashtiradi — shunda butun sayt bir zumda qayta bo'yaladi.
+
+       Tanlov `localStorage` da saqlanadi va `<head>` dagi kichik skript
+       (chala chizilmaslikning oldini olish uchun) uni sahifa chizilishidan
+       OLDIN o'qib qo'yadi.
+       ========================================================================= */
+    const Theme = (function () {
+        const KEY = 'stugo_theme';
+        const DARK = 'dark';
+        const LIGHT = 'light';
+
+        function current() {
+            return document.documentElement.getAttribute('data-theme') === DARK
+                ? DARK : LIGHT;
+        }
+
+        /* Rejimni qo'llaydi: atribut + saqlash + tugma holati.
+           `data-theme` ni o'zgartirish o'zida `[data-theme="dark"]`
+           qoidalarini ishga tushiradi va barcha `var(--...)` qiymatlari
+           yangilanadi. */
+        function apply(theme) {
+            const value = theme === DARK ? DARK : LIGHT;
+            document.documentElement.setAttribute('data-theme', value);
+            try { localStorage.setItem(KEY, value); } catch (e) {}
+
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) {
+                btn.setAttribute('aria-pressed', value === DARK ? 'true' : 'false');
+                // Hover matni: hozirgi rejimga qarab nima qilish mumkinligi
+                btn.setAttribute('title', t(value === DARK ? 'theme.toLight' : 'theme.toDark'));
+                btn.setAttribute('data-i18n-title',
+                    value === DARK ? 'theme.toLight' : 'theme.toDark');
+            }
+            return value;
+        }
+
+        function toggle() {
+            return apply(current() === DARK ? LIGHT : DARK);
+        }
+
+        /* Sahifa yuklanganda chaqiriladi. `<head>` skripti atributni
+           allaqachon qo'ygan bo'lsa, bu faqat tugma holatini to'g'rilaydi
+           va tanlovi tasdiqlaydi. */
+        function init() {
+            if (!document.documentElement.hasAttribute('data-theme')) {
+                apply(LIGHT);
+            } else {
+                apply(current());
+            }
+        }
+
+        return { current, apply, toggle, init, DARK, LIGHT };
+    })();
+
+    function toggleTheme() {
+        Theme.toggle();
+    }
+</script>
+
+<script>
+    /* =========================================================================
+       StuGo frontend — Django/DRF backend'ga ulangan.
+       API bazasi: o'z domainimiz (same-origin) → CORS kerak emas.
+       ========================================================================= */
+
+    var API = window.STUGO_API_BASE || '/api/v1';
+
+    /* ---------------------------------------------------------- state */
+    var state = {
+        access: null,
+        refresh: null,
+        user: null,
+        listings: [],
+        favorites: {},
+        convs: [],
+        activeConv: null,
+        amenities: [],
+        pickedFiles: [],
+        socket: null,
+        // Profil modalidda tanlangan, hali serverga yuborilmagan rasm:
+        //   {file: File|null, url: objectURL}
+        // `file === null` — "rasmni o'chirish" buyrugi (belgi sifatida
+        // ishlatiladi, chindagi fayl yo'q). `state === null` — tanlov yo'q.
+        pendingAvatar: null,
+        // Telegram bilan bog'lanish: botga yuborilgan bir martalik kod
+        // va uning natijasi (quyida `Telegram` moduli).
+        telegram: {code: null, status: 'idle', bot: null},
+        // E'lonlarni yuklash so'rovi ketma-ketligi. Filtr tez-tez
+        // o'zgaranda bir necha so'rov bir vaqtda havada bo'ladi va ular
+        // tartibsiz qaytadi — eski javob yangisini ustidan yozib yuborishi
+        // mumkin. Har so'rov o'z raqamini oladi, faqat eng so'nggi javob
+        // chiziladi.
+        listingsReq: 0
+    };
+
+    /* E'lon turi yorliqlari — tarjima kalitlari orqali (har tilga mos keladi) */
+    var TYPE_LABEL_KEYS = {
+        room: 'post.typeRoom',
+        bedspace: 'post.typeBedspace',
+        whole_apartment: 'post.typeApartment'
+    };
+
+    function typeLabel(type) {
+        var key = TYPE_LABEL_KEYS[type];
+        return key ? t(key) : type;
+    }
+
+    /* Rasm yo'q placeholder'i — SVG ichida matn bo'lgani uchun har til
+       uchun alohida qayta yig'iladi (tarjima o'zgarganda rasm ham yangilanadi). */
+    function placeholderImg() {
+        var label = t('housing.noPhoto');
+        var svg =
+            '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="260">' +
+            '<rect width="400" height="260" fill="#1E293B"/>' +
+            '<text x="50%" y="50%" fill="#64748B" font-size="16" font-family="sans-serif" ' +
+            'text-anchor="middle">' + esc(label) + '</text></svg>';
+        return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    }
+
+    /* ---------------------------------------------------------- util */
+    function $(id) {
+        return document.getElementById(id);
+    }
+
+    /* XSS himoyasi: foydalanuvchi ma'lumotini innerHTML'ga solishdan oldin
+       escape qilamiz. Boshqa joyda `textContent` ishlatiladi. */
+    function esc(v) {
+        if (v === null || v === undefined) return '';
+        return String(v)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    /* Joriy tilga mos raqam/sana formati.
+       `toLocaleString('uz-UZ')` qat'iy bo'lsa, rus tilida ham o'zbekcha
+       format (`,` va nuqta) qoladi. */
+    function curLocale() {
+        var c = (I18N && I18N.current) || 'uz';
+        return c === 'ru' ? 'ru-RU' : (c === 'en' ? 'en-US' : 'uz-UZ');
+    }
+
+    function fmtPrice(n, currency) {
+        var num = Number(n);
+        if (!isFinite(num)) return '';
+        var code = (currency || 'UZS').toUpperCase();
+        // UZS o'zbekcha so'm belgisi bilan, boshqa valyutalar o'z belgisi bilan
+        var sym = code === 'UZS' ? ' so\u2019m' : ' ' + code;
+        return num.toLocaleString(curLocale()) + sym;
+    }
+
+    function fmtRooms(n) {
+        if (!n) return '—';
+        return t('fmt.rooms', {n: Number(n)});
+    }
+
+    function fmtTime(iso) {
+        var d = new Date(iso);
+        if (isNaN(d)) return '';
+        var now = new Date();
+        var diff = (now - d) / 1000;
+        if (diff < 60) return t('fmt.now');
+        if (diff < 3600) return t('fmt.minutesAgo', {n: Math.floor(diff / 60)});
+        if (diff < 86400) return t('fmt.hoursAgo', {n: Math.floor(diff / 3600)});
+        if (diff < 604800) return t('fmt.daysAgo', {n: Math.floor(diff / 86400)});
+        return d.toLocaleDateString(curLocale(), {day: '2-digit', month: '2-digit', year: '2-digit'});
+    }
+
+    function fmtTimeShort(iso) {
+        var d = new Date(iso);
+        if (isNaN(d)) return '';
+        return d.toLocaleTimeString(curLocale(), {hour: '2-digit', minute: '2-digit'});
+    }
+
+    function debounce(fn, ms) {
+        // O'zgaruvchi nomi `t` bo'lmasligi kerak: bu funksiya ichida `t` —
+        // global tarjima funksiyasi (`t('kalit')`) — yashirilib qoladi va
+        // `var` hoisting tufayli butun funksiya doirasida "undefined" bo'ladi.
+        var timer = null;
+        return function () {
+            var args = arguments, self = this;
+            clearTimeout(timer);
+            timer = setTimeout(function () { fn.apply(self, args); }, ms);
+        };
+    }
+
+    /* Token saqlash (localStorage) */
+    function saveTokens(access, refresh) {
+        state.access = access;
+        state.refresh = refresh;
+        try {
+            if (access) localStorage.setItem('stugo.access', access);
+            if (refresh) localStorage.setItem('stugo.refresh', refresh);
+        } catch (e) { /* private mode — jimsiz davom etamiz */ }
+    }
+
+    function loadTokens() {
+        try {
+            state.access = localStorage.getItem('stugo.access');
+            state.refresh = localStorage.getItem('stugo.refresh');
+        } catch (e) { /* bo'sh */ }
+    }
+
+    function clearTokens() {
+        state.access = state.refresh = null;
+        state.user = null;
+        try {
+            localStorage.removeItem('stugo.access');
+            localStorage.removeItem('stugo.refresh');
+        } catch (e) { /* bo'sh */ }
+    }
+
+    /* ---------------------------------------------------------- API client */
+    function apiHeaders(extra) {
+        var h = {'Accept': 'application/json'};
+        if (state.access) h['Authorization'] = 'Bearer ' + state.access;
+        if (extra) {
+            Object.keys(extra).forEach(function (k) { h[k] = extra[k]; });
+        }
+        return h;
+    }
+
+    /* DRF xatolarini o'qiladigan matnga aylantirish */
+    function apiError(data, status) {
+        if (typeof data === 'string') return data;
+        if (!data || typeof data !== 'object') return t('common.error') + (status ? ' ' + status : '');
+        // Server mashinali kod yuborsa — o'z tilimizda ko'rsatamiz.
+        // Sabab: backend bitta tilni qaytarmaydi, frontend esa 3 tilda
+        // ishlaydi. `detail` faqat zaxira (eski kod yoki boshqa xatolar).
+        if (data.code) {
+            var key = 'api.' + data.code;
+            if (I18N.has(key)) return t(key, data.params || {});
+        }
+        if (data.detail) return String(data.detail);
+        var parts = [];
+        Object.keys(data).forEach(function (k) {
+            var v = data[k];
+            if (Array.isArray(v)) v = v.map(function (x) {
+                return typeof x === 'string' ? x : (x && x.detail) || JSON.stringify(x);
+            }).join(', ');
+            else if (v && typeof v === 'object') v = JSON.stringify(v);
+            parts.push(k + ': ' + v);
+        });
+        return parts.join(' | ') || t('common.error') + (status ? ' ' + status : '');
+    }
+
+    /* 401 kelganda bir marta refresh qilib, so'rovni takrorlash */
+    var refreshPromise = null;
+
+    function api(path, opts) {
+        opts = opts || {};
+        var url = path.charAt(0) === '/' ? API + path : API + '/' + path;
+        var body = opts.body;
+        var isForm = body instanceof FormData;
+
+        var headers = apiHeaders(isForm ? {} : (
+            body !== undefined ? {'Content-Type': 'application/json'} : {}
+        ));
+
+        var init = {method: opts.method || 'GET', headers: headers};
+        if (body !== undefined) {
+            init.body = isForm ? body : JSON.stringify(body);
+        }
+
+        return fetch(url, init).then(function (res) {
+            if (res.status === 401 && state.refresh && !opts._retried) {
+                if (!refreshPromise) {
+                    refreshPromise = fetch(API + '/auth/token/refresh/', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({refresh: state.refresh})
+                    }).then(function (r) {
+                        return r.ok ? r.json() : null;
+                    }).catch(function () {
+                        return null;
+                    }).then(function (data) {
+                        if (data && data.access) {
+                            saveTokens(data.access, state.refresh);
+                            return true;
+                        }
+                        clearTokens();
+                        renderAuthState();
+                        return false;
+                    }).then(function (ok) {
+                        refreshPromise = null;
+                        return ok;
+                    });
+                }
+                return refreshPromise.then(function (ok) {
+                    if (!ok) throw new Error('SESSION_EXPIRED');
+                    var retry = Object.assign({}, opts, {_retried: true});
+                    return api(path, retry);
+                });
+            }
+
+            var ct = res.headers.get('content-type') || '';
+            var parse = res.status === 204 ? Promise.resolve(null) :
+                (ct.indexOf('application/json') !== -1 ? res.json() : res.text());
+
+            return parse.then(function (data) {
+                if (!res.ok) {
+                    var err = new Error(apiError(data, res.status));
+                    err.status = res.status;
+                    err.data = data;
+                    throw err;
+                }
+                return data;
+            });
+        });
+    }
+
+    /* ---------------------------------------------------------- toast / modal */
+    function triggerToast(msg) {
+        var toast = $('toast');
+        if (!toast) return;
+        $('toastText').textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(triggerToast._t);
+        triggerToast._t = setTimeout(function () { toast.classList.remove('show'); }, 3500);
+    }
+
+    function openModal(id) {
+        var el = $(id);
+        if (el) el.classList.add('active');
+    }
+
+    function closeModal(id) {
+        var el = $(id);
+        if (el) el.classList.remove('active');
+        // Profil modali yopilsa, Telegram holatini tekshiruvi to'xtaydi —
+        // aks holda yashirin `setTimeout` foydalanuvchi ko'rmay turib
+        // serverga so'rov yuborishda davom etadi.
+        if (id === 'profileModal' && typeof tgStopPoll === 'function') tgStopPoll();
+    }
+
+    function openLightbox(imgUrl) {
+        if (!imgUrl) return;
+        $('lightboxImg').src = imgUrl;
+        $('lightboxModal').classList.add('active');
+    }
+
+    function closeLightbox() {
+        $('lightboxModal').classList.remove('active');
+    }
+
+    function requireAuth(next) {
+        if (state.user) {
+            if (next) next();
+            return true;
+        }
+        openAuthModal();
+        triggerToast(t('toast.loginFirst'));
+        return false;
+    }
+
+    /* ---------------------------------------------------------- section nav */
+    function showSection(secName) {
+        var sections = ['home', 'housing', 'jobs', 'skills', 'market', 'food'];
+        sections.forEach(function (s) {
+            var el = $('sec-' + s);
+            if (el) el.style.display = 'none';
+            var btn = $('btn-' + s);
+            if (btn) btn.classList.remove('active');
+        });
+
+        var target = $('sec-' + secName);
+        if (target) {
+            target.style.display = (secName === 'housing') ? 'flex' : 'block';
+        }
+        var targetBtn = $('btn-' + secName);
+        if (targetBtn) targetBtn.classList.add('active');
+
+        if (secName === 'housing' && map) {
+            setTimeout(function () { map.invalidateSize(); }, 220);
+        }
+        if (secName === 'housing') loadListings();
+    }
+
+    /* ============================================================ AUTH */
+    var authPhoneCache = '';
+
+    // O'zbekiston telefon raqamlari: +998 + 2 xonali operator + 7 xonali raqam.
+    // Ro'yxat `apps/users/services.py` dagi ro'yxat bilan bir xil.
+    var UZ_OPERATOR_CODES = ['20', '33', '36', '50', '55', '61', '62', '65', '66', '67',
+        '69', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80',
+        '87', '88', '90', '91', '92', '93', '94', '95', '97', '98', '99'];
+
+    /* Kiritilayotgan raqamni avtomatik "+998 90 123 45 67" ko'rinishiga keltiradi.
+       Foydalanuvchi noto'g'ri formatda kiritishidan oldini oladi. */
+    function formatPhoneInput(input) {
+        var digits = input.value.replace(/\D/g, '');
+
+        // 00998... va 998... ni +998 ga keltiramiz
+        if (digits.indexOf('00998') === 0) digits = '998' + digits.slice(5);
+        else if (digits.indexOf('998') === 0 && digits.length > 3) {
+            digits = digits;
+        } else if (digits.length === 9) {
+            // "901234567" — mamlakat kodisiz yozilgan
+            digits = '998' + digits;
+        }
+
+        // Faqat +998 dan keyingi 9 raqamni saqlaymiz
+        if (digits.indexOf('998') === 0) digits = digits.slice(3, 12);
+
+        var out = '';
+        if (digits.length) out = '+998';
+        var groups = [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 7), digits.slice(7, 9)];
+        for (var i = 0; i < groups.length; i++) {
+            if (groups[i]) {
+                out += (out ? ' ' : '') + groups[i];
+            } else {
+                break;
+            }
+        }
+        input.value = out;
+    }
+
+    /* CSS o'zgaruvchisining amaldagi qiymatini qaytaradi.
+
+       Rejim (yorug'/qora) almashganda ranglar o'zgaradi — shuning uchun
+       JS ichida qattiq rang (`#64748B`) ishlatish noto'g'ri. U yerda
+       `cssVar('--text-muted')` ishlatiladi: u har doim joriy rejimga
+       mos keladi. */
+    function cssVar(name, fallback) {
+        var v = getComputedStyle(document.documentElement)
+            .getPropertyValue(name).trim();
+        return v || fallback || '';
+    }
+
+    /* Maydondan chiqqanda raqamni tekshiradi, xatoni ko'rsatadi.
+       Qaytaradi: true — xato yo'q. */
+    function validatePhoneField(input) {
+        var hint = $('aPhoneHint');
+        var digits = input.value.replace(/\D/g, '').replace(/^998/, '');
+        var ok = true;
+        var msg = '12 xonali: <b>+998</b> + operator kodi + 7 xonali raqam. ' +
+            'Masalan <b>+998 90 123 45 67</b>.';
+        var color = cssVar('--text-muted', '#64748B');
+        var danger = cssVar('--danger', '#DC2626');
+
+        if (!digits) {
+            ok = false;
+            msg = 'Telefon raqamni kiriting.';
+            color = danger;
+        } else if (digits.length !== 9) {
+            ok = false;
+            msg = 'Raqam ' + digits.length + ' xonali, 9 xonali bo\'lishi kerak ' +
+                '(hozir ' + (9 - digits.length) + ' ta yetishmayapti).';
+            color = danger;
+        } else if (UZ_OPERATOR_CODES.indexOf(digits.slice(0, 2)) === -1) {
+            ok = false;
+            msg = 'Operator kodi <b>' + digits.slice(0, 2) + '</b> noto\'g\'ri. ' +
+                t('auth.possibleCodes');
+            color = danger;
+        } else {
+            msg = 'Yaxshi: <b>+998 ' + digits.slice(0, 2) + ' ' + digits.slice(2, 5) +
+                ' ' + digits.slice(5, 7) + ' ' + digits.slice(7, 9) + '</b>';
+            color = cssVar('--ok', '#16A34A');
+        }
+
+        if (hint) {
+            hint.innerHTML = msg;
+            hint.style.color = color;
+        }
+        return ok;
+    }
+
+    /* Xato/success holatini `authHint` elementida ko'rsatadi */
+    function setAuthHint(msg, kind) {
+        var hint = $('authHint');
+        hint.textContent = msg || '';
+        hint.classList.remove('error', 'success');
+        if (kind === 'error') hint.classList.add('error');
+        else if (kind === 'success') hint.classList.add('success');
+    }
+
+    function openAuthModal() {
+        if (state.user) {
+            openProfileModal();
+            return;
+        }
+        backToPhone();
+        openModal('authModal');
+    }
+
+    function backToPhone() {
+        $('authPhoneBlock').style.display = '';
+        $('authCodeBlock').style.display = 'none';
+        $('authStep1').classList.add('active');
+        $('authStep2').classList.remove('active');
+        setAuthHint('', null);
+    }
+
+    function sendOtp() {
+        var input = $('aPhone');
+        var phone = input.value.trim();
+        if (!phone) {
+            setAuthHint(t('auth.needPhoneShort'), 'error');
+            return;
+        }
+        // So'rovni yubormasdan oldin tekshiramiz — noto'g'ri formatda
+        // serverga murojaat qilmaslik uchun.
+        if (!validatePhoneField(input)) {
+            setAuthHint(t('auth.phoneFormatHint'), 'error');
+            return;
+        }
+        authPhoneCache = phone;
+        var btn = $('aResendBtn');
+        btn.disabled = true;
+
+        setAuthHint(t('auth.sending'), 'info');
+        api('/auth/send-otp/', {method: 'POST', body: {phone: phone, purpose: 'register'}})
+            .then(function (data) {
+                // Lokal debug rejimida backend kodni qaytaradi; production'da
+                // u faqat SMS orqali boradi.
+                if (data && data.debug_code) {
+                    setAuthHint(t('auth.debugCode') + ' ' + data.debug_code, 'success');
+                    $('aCode').value = data.debug_code;
+                } else {
+                    setAuthHint(t('auth.codeSent'), 'success');
+                }
+                $('authPhoneBlock').style.display = 'none';
+                $('authCodeBlock').style.display = '';
+                $('authStep1').classList.remove('active');
+                $('authStep2').classList.add('active');
+                $('aCode').focus();
+                // Qayta yuborish uchun 60 sek kutish.
+                // MUHIM: o'zgaruvchi `t` deb atalmaydi — global `t()` (tarjima
+                // funksiyasi) shu funksiya doirasida `var` hoisting orqali
+                // yashirilib qolardi va "t is not a function" xatosi chiqardi.
+                var secondsLeft = 60;
+                btn.textContent = t('auth.resendIn', {seconds: secondsLeft});
+                var resendTimer = setInterval(function () {
+                    secondsLeft -= 1;
+                    btn.textContent = secondsLeft > 0
+                        ? t('auth.resendIn', {seconds: secondsLeft})
+                        : t('auth.resend');
+                    if (secondsLeft <= 0) {
+                        clearInterval(resendTimer);
+                        btn.disabled = false;
+                    }
+                }, 1000);
+            })
+            .catch(function (e) {
+                btn.disabled = false;
+                setAuthHint(e.message, 'error');
+                triggerToast(e.message);
+            });
+    }
+
+    function verifyOtp() {
+        var code = $('aCode').value.trim();
+        if (!code) {
+            setAuthHint(t('auth.needCode'), 'error');
+            return;
+        }
+        var payload = {
+            phone: authPhoneCache,
+            code: code,
+            purpose: 'register'
+        };
+        var email = $('aEmail').value.trim();
+        if (email) payload.email = email;
+
+        setAuthHint(t('auth.checking'), 'info');
+        api('/auth/verify-otp/', {method: 'POST', body: payload})
+            .then(function (data) {
+                saveTokens(data.access, data.refresh);
+                state.user = data.user;
+                closeModal('authModal');
+
+                // Ro'yxatdan o'tish paytida kiritilgan ismni profilga saqlaymiz.
+                // MUHIM: `PATCH` ni `loadProfile()` dan OLDIN kutib o'tish kerak —
+                // aks holda GET PATCH'dan tezroq kelib, nav tugmasi "Profil"
+                // deb qoladi (ism ko'rinmaydi).
+                var fullName = $('aFullName').value.trim();
+                var patch = fullName ? {full_name: fullName} : null;
+                var save = patch
+                    ? api('/profile/me/', {method: 'PATCH', body: patch}).catch(function () {})
+                    : Promise.resolve();
+
+                return save.then(function () {
+                    // Ismni o'zimizdan ko'rsatamiz: login javobida `full_name`
+                    // yo'q (UserSerializeruni qaytarmaydi), faqat profil bor.
+                    var greet = (fullName || data.user.email || 'foydalanuvchi').split(' ')[0];
+                    triggerToast(t('auth.welcome', {name: greet}));
+                    renderAuthState();
+                    afterLogin();
+                });
+            })
+            .catch(function (e) {
+                setAuthHint(e.message, 'error');
+            });
+    }
+
+    function logout() {
+        closeModal('profileModal');
+        closeModal('authModal');
+        clearTokens();
+        closeSocket();
+        renderAuthState();
+        // Profil rasmi ham tegishli ma'lumotlar kabi tozalanadi — aks
+        // holda kirish tugmasida eski foydalanuvchining surati qoladi.
+        if (state.pendingAvatar && state.pendingAvatar.url) {
+            URL.revokeObjectURL(state.pendingAvatar.url);
+        }
+        state.pendingAvatar = null;
+        state.user = null;
+        state.telegram = {code: null, status: 'idle', bot: null};
+        renderAvatar();
+        $('chatPanel').classList.remove('active');
+        state.convs = [];
+        state.activeConv = null;
+        $('msgInput').value = '';
+        $('chatThreadBody').innerHTML = '';
+        $('chatThreadPartner').textContent = '';
+        renderChat();
+        triggerToast(t('toast.logout'));
+    }
+
+    function afterLogin() {
+        loadProfile();
+        loadAmenities();
+        loadFavorites();
+        loadConversations();
+        loadListings();
+    }
+
+    function renderAuthState() {
+        var authBtn = $('navAuthBtn');
+        var authIcon = $('navAuthIcon');
+        var authText = $('navAuthText');
+        var authName = $('navAuthName');
+        var verifyBtn = $('navVerifyBtn');
+        var chatBtn = $('navChatBtn');
+        var verifyText = $('navVerifyText');
+
+        if (state.user) {
+            /* Kiritilgan holda: ism ko\'rsatiladi, "Kirish" yashiriladi.
+               Ism foydalanuvchi ma\'lumoti — tarjima qilinmaydi. */
+            var name = state.user.full_name || state.user.email || t('nav.profile');
+            authName.textContent = name.split(' ')[0];
+            authName.hidden = false;
+            authText.hidden = true;
+            authIcon.className = 'fa-solid fa-user';
+            authBtn.onclick = openProfileModal;
+
+            verifyBtn.classList.add('verified');
+            // Kalikni ham yangilaymiz — keyingi `applyI18n()` chaqiruvida
+            // `data-i18n` orqali to\'g\'ri tilda tarjima qilinadi.
+            verifyText.setAttribute('data-i18n', state.user.is_verified ? 'verify.verified' : 'nav.verify');
+            verifyText.textContent = t(state.user.is_verified ? 'verify.verified' : 'nav.verify');
+            verifyBtn.onclick = state.user.is_verified ? null : openVerifyModal;
+            verifyBtn.style.cursor = state.user.is_verified ? 'default' : '';
+            chatBtn.style.display = '';
+        } else {
+            authName.textContent = '';
+            authName.hidden = true;
+            authText.hidden = false;
+            authText.setAttribute('data-i18n', 'nav.login');
+            authText.textContent = t('nav.login');
+            authIcon.className = 'fa-solid fa-right-to-bracket';
+            authBtn.onclick = openAuthModal;
+
+            verifyBtn.classList.remove('verified');
+            verifyText.setAttribute('data-i18n', 'nav.verify');
+            verifyText.textContent = t('nav.verify');
+            verifyBtn.onclick = function () {
+                requireAuth(openVerifyModal);
+            };
+            verifyBtn.style.cursor = '';
+            chatBtn.style.display = 'none';
+        }
+    }
+
+    /* ============================================================ PROFILE */
+    /* --- Telegram bilan bog'lanish -----------------------------------
+       Oqim:
+         1. `tgLinkTelegram()`  → POST /auth/telegram/link/  (kod + havola)
+         2. foydalanuvchi havolani ochadi va Telegram'da "Boshlash" bosadi
+         3. `manage.py telegram_bot` (lonq polling) kodni oladi, profilni bog'laydi
+         4. `tgPollStatus()` → GET /auth/telegram/status/?code=... tekshiradi
+       Toksiklik: `tgPollTimer` — modal yopilganda ham to'xtatiladi. */
+    var TG_POLL_MS = 2500;
+    var TG_POLL_MAX = 40;          // ~100 sekund (kod muddati 600 s dan kam)
+    var tgPollTimer = null;
+
+    function tgSetHint(text, kind) {
+        var hint = $('tgHint');
+        if (!hint) return;
+        hint.textContent = text || '';
+        hint.className = kind ? ('hint ' + kind) : 'hint';
+    }
+
+    /* Profil modalidagi Telegram blokini holatga qarab chizadi. */
+    function renderTelegramBox() {
+        if (!state.user) return;
+        var tg = state.telegram || (state.telegram = {code: null, status: 'idle', bot: null});
+        var linked = !!state.user.is_telegram_linked;
+
+        if (linked) {
+            tg.status = 'linked';
+        } else if (tg.status !== 'waiting') {
+            tg.status = 'idle';
+        }
+
+        $('tgIdleActions').style.display = (tg.status === 'idle') ? '' : 'none';
+        $('tgWaiting').style.display = (tg.status === 'waiting') ? '' : 'none';
+        $('tgLinkedBox').style.display = (tg.status === 'linked') ? '' : 'none';
+        $('tgBadge').style.display = (tg.status === 'linked') ? '' : 'none';
+
+        if (tg.status === 'linked') {
+            var uname = state.user.telegram_username || '';
+            $('tgUsername').textContent = uname ? ('@' + uname) : t('profile.telegramConnected');
+        }
+    }
+
+    function tgLinkTelegram() {
+        if (!state.user) return;
+        tgStopPoll();
+        tgSetHint(t('common.loading'), '');
+        $('tgIdleActions').style.display = 'none';
+
+        api('/auth/telegram/link/', {method: 'POST'})
+            .then(function (data) {
+                state.telegram = {
+                    code: data.code,
+                    status: 'waiting',
+                    bot: data.bot_username
+                };
+                $('tgCode').textContent = data.code;
+                $('tgOpenLink').href = data.bot_url;
+                renderTelegramBox();
+                tgSetHint(t('profile.telegramWaiting'), '');
+                tgStartPoll();
+            })
+            .catch(function (e) {
+                state.telegram = {code: null, status: 'idle', bot: null};
+                renderTelegramBox();
+                // 503 — bot tokeni yo'q yoki Telegram'ga ulanib bo'lmadi.
+                tgSetHint(
+                    e.status === 503 ? t('profile.telegramNotFound') : t('profile.telegramError', {msg: e.message}),
+                    'error'
+                );
+            });
+    }
+
+    function tgCancelLink() {
+        tgStopPoll();
+        state.telegram = {code: null, status: 'idle', bot: null};
+        renderTelegramBox();
+        tgSetHint('', '');
+    }
+
+    /* `GET /auth/telegram/status/` bilan bog'lanishni tekshiradi.
+       `attempts` — kodni tekshirish soni; chegaraga yetganda to'xtaydi. */
+    function tgPollStatus(attempts) {
+        var tg = state.telegram;
+        if (!tg || !tg.code || !state.user) return;
+
+        api('/auth/telegram/status/?code=' + encodeURIComponent(tg.code))
+            .then(function (data) {
+                if (data.is_telegram_linked) {
+                    // Profilni yangilaymiz — `telegram_username` ham keladi.
+                    state.user = Object.assign({}, state.user, data);
+                    state.telegram = {code: null, status: 'linked', bot: tg.bot};
+                    tgStopPoll();
+                    renderTelegramBox();
+                    tgSetHint(t('profile.telegramConnected'), 'success');
+                    triggerToast(t('profile.telegramConnected'));
+                    return;
+                }
+                // Hali bog'lanmagan. `pending` — kod hali turibdi, demak
+                // foydalanuvchi Telegram'da "Boshlash"ni hali bosmagan.
+                if (!data.pending) {
+                    tgStopPoll();
+                    tgSetHint(t('profile.telegramBadCode'), 'error');
+                    return;
+                }
+                if (attempts >= TG_POLL_MAX) {
+                    tgStopPoll();
+                    tgSetHint(t('profile.telegramTimeout'), 'error');
+                    return;
+                }
+                tgSetHint(t('profile.telegramWaiting'), '');
+                tgPollTimer = setTimeout(function () { tgPollStatus(attempts + 1); }, TG_POLL_MS);
+            })
+            .catch(function () {
+                // Tarmoq uzilishi — urinib ko'rishni davom ettiramiz,
+                // lekin chegarani oshirmaymiz.
+                if (attempts >= TG_POLL_MAX) {
+                    tgStopPoll();
+                    return;
+                }
+                tgPollTimer = setTimeout(function () { tgPollStatus(attempts + 1); }, TG_POLL_MS);
+            });
+    }
+
+    function tgStartPoll() {
+        tgStopPoll();
+        tgPollStatus(0);
+    }
+
+    function tgStopPoll() {
+        if (tgPollTimer) {
+            clearTimeout(tgPollTimer);
+            tgPollTimer = null;
+        }
+    }
+
+    function tgUnlink() {
+        if (!state.user) return;
+        if (!confirm(t('profile.telegramUnlinkConfirm'))) return;
+        tgStopPoll();
+        api('/auth/telegram/unlink/', {method: 'POST'})
+            .then(function () {
+                state.user = Object.assign({}, state.user, {
+                    is_telegram_linked: false,
+                    telegram_username: '',
+                    telegram_id: null,
+                    telegram_linked_at: null
+                });
+                state.telegram = {code: null, status: 'idle', bot: null};
+                renderTelegramBox();
+                tgSetHint(t('profile.telegramUnlinked'), 'success');
+                triggerToast(t('profile.telegramUnlinked'));
+            })
+            .catch(function (e) { tgSetHint(e.message, 'error'); });
+    }
+
+    /* Profil rasmi bilan ishlash.
+
+       Ikki xil manzil bor:
+         * `state.user.avatar` — serverdagi saqlangan rasmning manzili
+           (backend `PATCH /profile/me/` dan qaytaradi);
+         * `state.pendingAvatar` — foydalanuvchi endi tanlagan, hali
+           saqlanmagan fayl. Modal ichida darhol ko'rsatiladi
+           (`URL.createObjectURL`), `saveProfile()` da yuboriladi.
+
+       Eslatma: `URL.revokeObjectURL` qarzini to'ldirish kerak — aks
+       holda tanlangan har bir rasm butun sessiya davomida xotirada
+       qoladi. */
+    var AVATAR_MAX_BYTES = 5 * 1024 * 1024;   // 5 MB
+    var AVATAR_MIME = ['image/png', 'image/jpeg', 'image/webp'];
+
+    function avatarUrl() {
+        return (state.user && state.user.avatar) || '';
+    }
+
+    /* Barcha avatar ko'rinishlarini (navbar + modal) yangilaydi. */
+    function renderAvatar() {
+        var url = avatarUrl();
+        var nav = $('navAvatar');
+        if (nav) {
+            nav.hidden = !url;
+            if (url) nav.src = url;
+            else nav.removeAttribute('src');
+        }
+        // Navbar'da rasm bo'lsa oddiy ikonkani yashiramiz (joyini egallamasin)
+        var icon = $('navAuthIcon');
+        if (icon) icon.style.display = (url && state.user) ? 'none' : '';
+        renderAvatarPreview();
+    }
+
+    function renderAvatarPreview() {
+        var img = $('avatarImg');
+        var icon = $('avatarIcon');
+        var removeBtn = $('avatarRemoveBtn');
+        if (!img) return;
+        var url = state.pendingAvatar ? state.pendingAvatar.url : avatarUrl();
+        img.hidden = !url;
+        icon.style.display = url ? 'none' : '';
+        if (url) img.src = url;
+        else img.removeAttribute('src');
+        if (removeBtn) removeBtn.style.display = url ? '' : 'none';
+    }
+
+    /* Fayl tanlandi: turi va hajmini tekshiramiz, keyin ko'rsatamiz.
+       Noto'g'ri faylda modal yopilmaydi — foydalanuvchi to'g'ri
+       rasmni tanlashi uchun imkoniyati qoladi. */
+    function previewAvatar(input) {
+        var hint = $('profileHint');
+        var file = input.files && input.files[0];
+        if (!file) return;
+
+        if (AVATAR_MIME.indexOf(file.type) === -1) {
+            input.value = '';
+            if (hint) {
+                hint.textContent = t('profile.photoBadType');
+                hint.className = 'hint error';
+            }
+            return;
+        }
+        if (file.size > AVATAR_MAX_BYTES) {
+            input.value = '';
+            if (hint) {
+                hint.textContent = t('profile.photoTooBig', {mb: AVATAR_MAX_BYTES / 1048576});
+                hint.className = 'hint error';
+            }
+            return;
+        }
+
+        // Avvalgi obyekt URL'ni bo'shatamiz (xotira oqimi)
+        if (state.pendingAvatar && state.pendingAvatar.url) {
+            URL.revokeObjectURL(state.pendingAvatar.url);
+        }
+        state.pendingAvatar = {file: file, url: URL.createObjectURL(file)};
+        renderAvatarPreview();
+        if (hint) {
+            hint.textContent = '';
+            hint.className = 'hint';
+        }
+    }
+
+    /* Tanlangan rasmni bekor qilish (tugma "O'chirish" bosilganda). */
+    function removeAvatar() {
+        if (state.pendingAvatar && state.pendingAvatar.url) {
+            URL.revokeObjectURL(state.pendingAvatar.url);
+        }
+        // `file: null` — "rasmni o'chirish" buyrugi. `saveProfile()`
+        // bo'sh qiymat yuboradi va server rasmni tozalaydi.
+        state.pendingAvatar = {file: null, url: ''};
+        $('avatarInput').value = '';
+        renderAvatarPreview();
+    }
+
+    function loadProfile() {
+        return api('/profile/me/')
+            .then(function (data) {
+                state.user = Object.assign({}, state.user, data);
+                renderAuthState();
+                renderAvatar();
+                return data;
+            })
+            .catch(function () { /* sessiya yo'q */ });
+    }
+
+    function openProfileModal() {
+        if (!state.user) return;
+        // Yangi ochilganda avvalgi tanlov tozalanadi — bekor qilingan
+        // rasm keyinchalik tasoddan saqlanib qolmasligi kerak.
+        if (state.pendingAvatar && state.pendingAvatar.url) {
+            URL.revokeObjectURL(state.pendingAvatar.url);
+        }
+        state.pendingAvatar = null;
+        $('avatarInput').value = '';
+        $('pFullName').value = state.user.full_name || '';
+        $('pEmail').value = state.user.email || '';
+        $('pCity').value = state.user.city || '';
+        $('pUniversity').value = state.user.university || '';
+        $('pFaculty').value = state.user.faculty || '';
+        $('pBio').value = state.user.bio || '';
+        $('profileHint').textContent = '';
+        $('profileHint').className = 'hint';
+        renderAvatarPreview();
+        // Telegram blokini joriy holatga to'liq moslaymiz va eskietgan
+        // tekshiruv navbatini to'xtatamiz (modal yopilganda ham kerak).
+        tgStopPoll();
+        tgSetHint('', '');
+        renderTelegramBox();
+        openModal('profileModal');
+    }
+
+    function saveProfile() {
+        var body = {
+            full_name: $('pFullName').value.trim(),
+            email: $('pEmail').value.trim(),
+            city: $('pCity').value.trim(),
+            university: $('pUniversity').value.trim(),
+            faculty: $('pFaculty').value.trim(),
+            bio: $('pBio').value.trim()
+        };
+        $('profileHint').textContent = t('profile.saving');
+        $('profileHint').className = 'hint';
+
+        // Rasm tanlangan bo'lsa — multipart shaklda yuborish shart
+        // (JSON da faylni yuborib bo'lmaydi). Aks holda oddiy JSON.
+        //
+        // "O'chirish" alohida holat: multipart'da bo'sh satr yuborilsa,
+        // DRF "The submitted file is empty" xatosini beradi — shuning uchun
+        // `null` JSON orqali yuboriladi (`Profile.avatar` `null=True`).
+        var pending = state.pendingAvatar;
+        var request;
+        if (pending && pending.file) {
+            var fd = new FormData();
+            Object.keys(body).forEach(function (k) { fd.append(k, body[k]); });
+            fd.append('avatar', pending.file);
+            request = api('/profile/me/', {method: 'PATCH', body: fd});
+        } else {
+            if (pending) body.avatar = null;   // rasmni o'chirish
+            request = api('/profile/me/', {method: 'PATCH', body: body});
+        }
+
+        request
+            .then(function (data) {
+                if (pending && pending.url) URL.revokeObjectURL(pending.url);
+                state.pendingAvatar = null;
+                state.user = Object.assign({}, state.user, data);
+                renderAuthState();
+                renderAvatar();
+                closeModal('profileModal');
+                triggerToast(t('toast.profileSaved'));
+            })
+            .catch(function (e) {
+                $('profileHint').textContent = e.message;
+                $('profileHint').className = 'hint error';
+            });
+    }
+
+    /* ============================================================ VERIFY */
+    function openVerifyModal() {
+        if (!requireAuth()) return;
+        $('verifyEmailBlock').style.display = '';
+        $('verifyCodeBlock').style.display = 'none';
+        $('vEmail').value = state.user && state.user.email ? state.user.email : '';
+        $('vCode').value = '';
+        $('verifyHint').textContent = '';
+        openModal('verifyModal');
+    }
+
+    function sendVerifyCode() {
+        var field = $('vEmail');
+        var email = field.value.trim();
+        // Modal yopiq bo'lganda maydon bo'sh qolishi mumkin (masalan
+        // `saveProfile()` dan keyin). Profildagi email bor bo'lsa —
+        // foydalanuvchidan qayta kiritishni talab qilmaymiz.
+        if (!email && state.user && state.user.email) {
+            email = state.user.email;
+            field.value = email;
+        }
+        if (!email) {
+            $('verifyHint').textContent = t('verify.needEmail');
+            return;
+        }
+        $('verifyHint').textContent = t('verify.sending');
+        api('/verification/email/send-code/', {method: 'POST', body: {email: email}})
+            .then(function (data) {
+                if (data && data.debug_code) {
+                    $('verifyHint').textContent = t('auth.debugCode') + ' ' + data.debug_code;
+                    $('vCode').value = data.debug_code;
+                } else {
+                    $('verifyHint').textContent = t('verify.codeSent');
+                }
+                $('verifyEmailBlock').style.display = 'none';
+                $('verifyCodeBlock').style.display = '';
+                $('vCode').focus();
+            })
+            .catch(function (e) {
+                $('verifyHint').textContent = e.message;
+            });
+    }
+
+    function confirmVerifyCode() {
+        var code = $('vCode').value.trim();
+        var email = $('vEmail').value.trim();
+        if (!code) {
+            $('verifyHint').textContent = t('verify.needCode');
+            return;
+        }
+        $('verifyHint').textContent = t('verify.checking');
+        api('/verification/email/confirm/', {method: 'POST', body: {email: email, code: code}})
+            .then(function () {
+                state.user.is_verified = true;
+                renderAuthState();
+                closeModal('verifyModal');
+                triggerToast(t('toast.verifySuccess'));
+                loadProfile();
+            })
+            .catch(function (e) {
+                $('verifyHint').textContent = e.message;
+            });
+    }
+
+    /* ============================================================ LISTINGS */
+    function loadAmenities() {
+        if (state.amenities.length) return Promise.resolve();
+        return api('/amenities/')
+            .then(function (data) {
+                state.amenities = data.results || data || [];
+                renderAmenities();
+            })
+            .catch(function () {
+                $('amenityBox').textContent = t('housing.amenitiesLoading');
+            });
+    }
+
+    function renderAmenities() {
+        var box = $('amenityBox');
+        if (!box) return;
+        box.innerHTML = '';
+        if (!state.amenities.length) {
+            box.innerHTML = '<span style="font-size:13px; color:var(--text-muted);">' +
+                esc(t('housing.noAmenities')) + '</span>';
+            return;
+        }
+        state.amenities.forEach(function (a) {
+            var lab = document.createElement('label');
+            lab.style.cssText = 'font-size:12px; padding:6px 10px; border:1px solid var(--border); border-radius:16px; cursor:pointer;';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = a.id;
+            cb.style.marginRight = '5px';
+            lab.appendChild(cb);
+            // Jihoz nomlari DB'da o'zbekcha saqlanadi, lekin interfeys
+            // 3 tilda ishlaydi. `amenity.<id>` kaliti topilmasa —
+            // DB'dagi nomni ko'rsatamiz (ma'lumot hech qachon yo'qolmaydi).
+            var key = 'amenity.' + a.id;
+            lab.appendChild(document.createTextNode(I18N.has(key) ? t(key) : a.name));
+            box.appendChild(lab);
+        });
+    }
+
+    function selectedAmenities() {
+        var out = [];
+        $('amenityBox').querySelectorAll('input:checked').forEach(function (cb) {
+            out.push(parseInt(cb.value, 10));
+        });
+        return out;
+    }
+
+    var debouncedLoad = debounce(function () { loadListings(); }, 350);
+
+    function loadListings() {
+        var container = $('housingListContainer');
+        if (!container) return;
+
+        // So'rov ketma-ketligi: bu qatordan keyin boshqa `loadListings()`
+        // chaqirilsa, pastdagi javoblar butunlay tashlab yuboriladi.
+        var reqId = ++state.listingsReq;
+
+        var params = new URLSearchParams();
+        var q = $('searchInput').value.trim();
+        if (q) params.set('search', q);
+        var type = $('typeFilter').value;
+        if (type) params.set('type', type);
+        var city = $('cityFilter').value;
+        if (city) params.set('city', city);
+
+        // Autentifikatsiya talab qilinadi — token bo'lmasa avval kirishni so'raymiz.
+        if (!state.user) {
+            renderHousingSkeletons(3);
+            renderMapMarkers([]);
+            $('housingListContainer').innerHTML =
+                '<div class="empty-state">' +
+                '<i class="fa-solid fa-lock"></i>' +
+                t('housing.needLoginToView') +
+                '<div style="margin-top:16px;">' +
+                '<button class="btn btn-primary" onclick="openAuthModal()">' +
+                '<i class="fa-solid fa-right-to-bracket"></i> ' + t('nav.login') + '</button></div></div>';
+            return;
+        }
+
+        renderHousingSkeletons(3);
+        var qs = params.toString();
+        api('/listings/' + (qs ? '?' + qs : ''))
+            .then(function (data) {
+                if (reqId !== state.listingsReq) return;  // eski javob — e'tiborsiz
+                state.listings = data.results || [];
+                renderListings(state.listings);
+                renderCityOptions();
+                // Xarita markerlari. Avval `invalidateSize()`, keyin markerlar:
+                // xarita yashirin holatda 0x0 o'lchamda yaratilgan bo'lsa,
+                // `fitBounds` noto'g'ri chegarada hisoblanadi.
+                if (map) map.invalidateSize();
+                renderMapMarkers(state.listings);
+            })
+            .catch(function (e) {
+                if (reqId !== state.listingsReq) return;  // eski javob — e'tiborsiz
+                if (e.message === 'SESSION_EXPIRED') return;
+                $('housingListContainer').innerHTML =
+                    '<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>' +
+                    esc(e.message) + '</div>';
+            });
+    }
+
+    function renderHousingSkeletons(n) {
+        var html = '';
+        for (var i = 0; i < n; i++) {
+            html += '<div class="housing-item" style="pointer-events:none;">' +
+                '<div class="skeleton" style="height:160px;"></div>' +
+                '<div class="housing-details">' +
+                '<div class="skeleton" style="height:22px; width:45%; margin-bottom:10px;"></div>' +
+                '<div class="skeleton" style="height:16px; width:85%; margin-bottom:8px;"></div>' +
+                '<div class="skeleton" style="height:14px; width:60%;"></div>' +
+                '</div></div>';
+        }
+        $('housingListContainer').innerHTML = html;
+    }
+
+    function renderListings(items) {
+        var container = $('housingListContainer');
+        container.innerHTML = '';
+
+        if (!items.length) {
+            container.innerHTML =
+                '<div class="empty-state">' +
+                '<i class="fa-solid fa-house-circle-xmark"></i>' +
+                t('housing.empty') +
+                '</div>';
+            return;
+        }
+
+        items.forEach(function (item) {
+            container.appendChild(buildListingCard(item));
+        });
+    }
+
+    function buildListingCard(item) {
+        var card = document.createElement('div');
+        card.className = 'housing-item';
+        card.id = 'housing-card-' + item.id;
+
+        var img = item.main_image || placeholderImg();
+        var badge = typeLabel(item.type);
+
+        // Ro'yxat kartasi — backend dan kelgan ma'lumot faqat matn sifatida
+        // (escape qilingan holda) qo'yiladi, foydalanuvchi HTML'i bajarilmaydi.
+        card.innerHTML =
+            '<div class="housing-img-box">' +
+            '<img src="' + esc(img) + '" alt="' + esc(item.title) + '" ' +
+            'onclick="openLightbox(this.src)" style="cursor:pointer;">' +
+            '<span class="badge-type">' + esc(badge) + '</span>' +
+            '<button class="expand-img-btn" onclick="openLightbox(this.previousElementSibling.src)">' +
+            '<i class="fa-solid fa-expand"></i> ' + t('housing.expand') + '</button>' +
+            '</div>' +
+            '<div class="housing-details">' +
+            '<div class="housing-price">' + esc(fmtPrice(item.price, item.currency)) + '</div>' +
+            '<div class="housing-title">' + esc(item.title) + '</div>' +
+            '<div class="housing-location"><i class="fa-solid fa-location-dot"></i> ' +
+            esc([item.city, item.district].filter(Boolean).join(', ') || t('housing.addressMissing')) +
+            '</div>' +
+            (item.owner_verified
+                ? '<div class="verified-user"><i class="fa-solid fa-circle-check"></i> ' +
+                  t('housing.verifiedOwnerTag') + '</div>'
+                : '') +
+            '<div class="housing-features">' +
+            '<div class="feature-item">' + t('housing.featureRooms') + '<strong>' + esc(fmtRooms(item.rooms)) + '</strong></div>' +
+            '<div class="feature-item">' + t('housing.area') + '<strong>' +
+            esc(item.area ? item.area + ' m²' : '—') + '</strong></div>' +
+            '<div class="feature-item">' + t('housing.floor') + '<strong>' +
+            esc(item.floor || '—') + '</strong></div>' +
+            '</div>' +
+            '<div class="housing-actions">' +
+            '<button class="btn btn-primary" onclick="contactOwner(' + item.owner_id + ')">' +
+            '<i class="fa-solid fa-comment-dots"></i> ' + t('housing.write') + '</button>' +
+            '<a class="btn btn-telegram" target="_blank" rel="noopener noreferrer" ' +
+            'href="https://t.me/share/url?url=' +
+            encodeURIComponent(window.location.href.split('#')[0] + '#housing-card-' + item.id) +
+            '&text=' + encodeURIComponent(item.title) + '" ' +
+            'title="' + esc(t('housing.shareTelegramTooltip')) + '">' +
+            '<i class="fa-brands fa-telegram"></i> ' + t('housing.shareTelegram') + '</a>' +
+            '<button class="btn btn-outline" onclick="toggleFavorite(' + item.id + ', this)">' +
+            '<i class="fa-' + (state.favorites[item.id] ? 'solid fa-heart' : 'regular fa-heart') +
+            '"></i> ' + t('favorites.title') + '</button>' +
+            '</div>' +
+            '<div style="margin-top:10px; font-size:12px; color:var(--text-muted);">' +
+            esc(fmtTime(item.created_at)) +
+            (item.owner_phone ? ' · ' + esc(item.owner_phone) : '') +
+            '</div>' +
+            '</div>';
+        return card;
+    }
+
+    function renderCityOptions() {
+        var sel = $('cityFilter');
+        if (!sel) return;
+        var current = sel.value;
+        var cities = {};
+        state.listings.forEach(function (l) {
+            if (l.city) cities[l.city] = true;
+        });
+        sel.innerHTML = '<option value="">' + t('housing.allCities') + '</option>';
+        Object.keys(cities).sort().forEach(function (c) {
+            var opt = document.createElement('option');
+            opt.value = c;
+            opt.textContent = c;
+            sel.appendChild(opt);
+        });
+        sel.value = current;
+    }
+
+    function toggleFavorite(listingId, btn) {
+        if (!requireAuth()) return;
+        api('/listings/' + listingId + '/favorite/', {method: 'POST'})
+            .then(function (data) {
+                state.favorites[listingId] = data.favorited;
+                var icon = btn.querySelector('i');
+                icon.className = 'fa-' + (data.favorited ? 'solid fa-heart' : 'regular fa-heart');
+                btn.style.color = data.favorited ? cssVar('--fav', '#E11D48') : '';
+                triggerToast(t(data.favorited ? 'housing.favAdd' : 'housing.favRemove'));
+            })
+            .catch(function (e) {
+                if (e.message !== 'SESSION_EXPIRED') triggerToast(e.message);
+            });
+    }
+
+    function loadFavorites() {
+        if (!state.user) return;
+        api('/listings/favorites/?page_size=100')
+            .then(function (data) {
+                state.favorites = {};
+                (data.results || []).forEach(function (l) {
+                    state.favorites[l.id] = true;
+                });
+            })
+            .catch(function () { /* muhim emas */ });
+    }
+
+    /* ============================================================ E'LON BERISH */
+    function openPostModal() {
+        if (!requireAuth()) return;
+        if (!state.user.is_verified) {
+            openVerifyModal();
+            triggerToast(t('toast.verifyFirst'));
+            return;
+        }
+        loadAmenities();
+        $('listingHint').textContent = '';
+        $('imgError').textContent = '';
+        openModal('postModal');
+    }
+
+    function onFilesPicked() {
+        var input = $('fImages');
+        state.pickedFiles = Array.prototype.slice.call(input.files || []);
+        renderPreviews();
+    }
+
+    function renderPreviews() {
+        var grid = $('previewGrid');
+        grid.innerHTML = '';
+        state.pickedFiles.forEach(function (f) {
+            var img = document.createElement('img');
+            img.src = URL.createObjectURL(f);
+            img.onload = function () { URL.revokeObjectURL(img.src); };
+            grid.appendChild(img);
+        });
+        if (state.pickedFiles.length) {
+            $('imgError').textContent = state.pickedFiles.length + ' rasm tanlandi';
+        }
+    }
+
+    function submitListing(ev) {
+        ev.preventDefault();
+        var btn = $('listingSubmit');
+        btn.disabled = true;
+        $('listingHint').textContent = t('post.publishing');
+
+        var body = {
+            title: $('fTitle').value.trim(),
+            description: $('fDescription').value.trim(),
+            type: $('fType').value,
+            price: $('fPrice').value,
+            city: $('fCity').value.trim(),
+            district: $('fDistrict').value.trim()
+        };
+        var rooms = $('fRooms').value;
+        if (rooms) body.rooms = rooms;
+        var amen = selectedAmenities();
+        if (amen.length) body.amenity_ids = amen;
+
+        api('/listings/', {method: 'POST', body: body})
+            .then(function (listing) {
+                // Rasmlarni alohida yuklash kerak (multipart).
+                if (!state.pickedFiles.length) {
+                    finishListing(btn);
+                    return null;
+                }
+                var fd = new FormData();
+                state.pickedFiles.forEach(function (f) { fd.append('images', f); });
+                return api('/listings/' + listing.id + '/images/', {method: 'POST', body: fd})
+                    .then(function () {
+                        finishListing(btn);
+                    })
+                    .catch(function (e) {
+                        // E'lon yaratildi, faqat rasm yuklanmadi — buni yashirmaymiz.
+                        finishListing(btn);
+                        triggerToast(t('toast.listingCreatedNoPhoto') + e.message);
+                    });
+            })
+            .catch(function (e) {
+                btn.disabled = false;
+                $('listingHint').textContent = e.message;
+                if (e.status === 403) triggerToast(t('toast.unverifiedUser'));
+            });
+    }
+
+    function finishListing(btn) {
+        btn.disabled = false;
+        $('listingHint').textContent = '';
+        closeModal('postModal');
+        $('listingForm').reset();
+        state.pickedFiles = [];
+        $('previewGrid').innerHTML = '';
+        triggerToast(t('toast.listingCreated'));
+        loadListings();
+    }
+
+    /* ============================================================ CHAT */
+    function loadConversations() {
+        if (!state.user) return Promise.resolve();
+        return api('/conversations/?page_size=50')
+            .then(function (data) {
+                state.convs = data.results || [];
+                renderChat();
+            })
+            .catch(function () { /* sessiya yo'q */ });
+    }
+
+    function toggleChat() {
+        var panel = $('chatPanel');
+        panel.classList.toggle('active');
+        if (panel.classList.contains('active')) loadConversations();
+    }
+
+    function renderChat() {
+        var list = $('chatList');
+        if (!list) return;
+        list.innerHTML = '';
+
+        // Ochiq suhbat turib tursa, ro'yxatni chizish o'rniga uning
+        // sarlavhasini yangilaymiz — xabarlar joyida qoladi.
+        if (state.activeConv) {
+            $('chatList').hidden = true;
+            $('chatThread').hidden = false;
+            $('chatThreadPartner').textContent = partnerName(state.activeConv);
+            $('chatInputRow').style.display = '';
+            return;
+        }
+
+        list.hidden = false;
+        $('chatThread').hidden = true;
+
+        if (!state.convs.length) {
+            list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-comment-slash"></i>' +
+                t('chat.noMessages') + '</div>';
+            $('chatInputRow').style.display = 'none';
+            return;
+        }
+
+        state.convs.forEach(function (c) {
+            var partner = (c.partner && (c.partner.full_name || c.partner.phone)) || t('chat.selectConversation');
+            var div = document.createElement('div');
+            div.className = 'chat-item';
+            div.onclick = function () { openConversation(c.id); };
+            div.innerHTML =
+                '<div class="who">' + esc(partner) +
+                (c.unread_count ? '<span class="badge">' + c.unread_count + '</span>' : '') +
+                '</div>' +
+                '<div class="prev">' +
+                esc(c.last_message ? (c.last_message.text || t('common.photo')) : t('chat.empty')) +
+                '</div>' +
+                '<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">' +
+                esc(fmtTime(c.updated_at)) + '</div>';
+            list.appendChild(div);
+        });
+    }
+
+    function contactOwner(ownerId) {
+        if (!requireAuth()) return;
+        api('/conversations/', {method: 'POST', body: {user_id: ownerId}})
+            .then(function (conv) {
+                openConversation(conv.id);
+            })
+            .catch(function (e) {
+                if (e.message !== 'SESSION_EXPIRED') triggerToast(e.message);
+            });
+    }
+
+    function openConversation(convId, keepSocket) {
+        state.activeConv = convId;
+        $('chatInputRow').style.display = '';
+        $('chatPanel').classList.add('active');
+        // Ro'yxat yashiriladi, suhbat ochiqadi — aks holda `renderChat()`
+        // har yangi xabarda suhbatni ro'yxat bilan almashtirib yuboradi.
+        $('chatList').hidden = true;
+        $('chatThread').hidden = false;
+        $('chatThreadPartner').textContent = partnerName(convId);
+        var body = $('chatThreadBody');
+        body.innerHTML = '<div class="empty-state">' + t('common.loading') + '</div>';
+
+        api('/conversations/' + convId + '/messages/?page_size=50')
+            .then(function (data) {
+                var msgs = (data.results || []).slice().reverse();
+                body.innerHTML = '';
+                if (!msgs.length) {
+                    var empty = document.createElement('div');
+                    empty.className = 'empty-state';
+                    empty.textContent = t('chat.noMessages');
+                    body.appendChild(empty);
+                }
+                msgs.forEach(function (m) {
+                    body.appendChild(buildMessageRow(m, m.sender === state.user.id));
+                });
+                body.scrollTop = body.scrollHeight;
+            })
+            .catch(function (e) {
+                body.innerHTML = '<div class="empty-state">' + esc(e.message) + '</div>';
+            });
+
+        // WebSocket faqat ochiq suhbat uchun (qayta ulanmasa)
+        if (!keepSocket) openSocket(convId);
+    }
+
+    /** Suhuat ro'yxatiga qaytish: suhbat yopiladi, xabar yozish yashiriladi. */
+    function closeConversation() {
+        state.activeConv = null;
+        closeSocket();
+        $('chatThread').hidden = true;
+        $('chatList').hidden = false;
+        $('chatInputRow').style.display = 'none';
+        $('msgInput').value = '';
+        // Ro'yxat ochiq holatda `renderChat()` ning `return` qismi tufayli
+        // chizilmagan bo'lardi — shuning uchun uni qayta yuklaymiz.
+        loadConversations();
+    }
+
+    /** Ochiq suhbat sarlavhasi — ishlatilgan konversatsiyadagi sherik. */
+    function partnerName(convId) {
+        var conv = null;
+        for (var i = 0; i < state.convs.length; i++) {
+            if (state.convs[i].id === convId) { conv = state.convs[i]; break; }
+        }
+        if (!conv) return t('chat.head');
+        return (conv.partner && (conv.partner.full_name || conv.partner.phone))
+            || t('chat.selectConversation');
+    }
+
+    function buildMessageRow(m, mine) {
+        var row = document.createElement('div');
+        row.className = 'msg-row' + (mine ? ' mine' : '');
+        var wrap = document.createElement('div');
+        var bubble = document.createElement('div');
+        bubble.className = 'msg-bubble';
+        // `textContent` — foydalanuvchi matni HTML sifatida bajarilmaydi
+        bubble.textContent = m.text || '[rasm]';
+        var time = document.createElement('div');
+        time.className = 'msg-time';
+        time.textContent = fmtTimeShort(m.created_at);
+        wrap.appendChild(bubble);
+        wrap.appendChild(time);
+        row.appendChild(wrap);
+        return row;
+    }
+
+    function sendMessage() {
+        var input = $('msgInput');
+        var text = input.value.trim();
+        if (!text || !state.activeConv) return;
+
+        // WebSocket ochiq bo'lsa — real vaqtda yuboramiz.
+        if (state.socket && state.socket.readyState === WebSocket.OPEN) {
+            state.socket.send(JSON.stringify({text: text}));
+            input.value = '';
+            return;
+        }
+
+        // WebSocket ishlamasa — REST orqali (ishlaydi, biroz kechikadi)
+        input.value = '';
+        api('/conversations/' + state.activeConv + '/messages/',
+            {method: 'POST', body: {text: text}})
+            .then(function (m) {
+                appendMessage(
+                    {text: m.text, created_at: m.created_at, sender_id: m.sender},
+                    state.user.id
+                );
+                loadConversations();
+            })
+            .catch(function (e) {
+                if (e.message !== 'SESSION_EXPIRED') {
+                    input.value = text; /* yo'qotmaslik uchun qaytarib qo'yamiz */
+                    triggerToast(e.message);
+                }
+            });
+    }
+
+    /* WebSocket.
+       Backend TARXIYASI (apps/chat/consumers.py):
+         - URL:      /ws/chat/<conversation_id>/  (suhbat id majburiy!)
+         - Token:    `Sec-WebSocket-Protocol: bearer, <access_token>`
+                     (query string EMAS — u loglarga yozilib ketadi)
+       Localhost da InMemoryChannelLayer, production'da Redis ishlatiladi. */
+    function wsOrigin() {
+        if (window.STUGO_WS_ORIGIN) return window.STUGO_WS_ORIGIN;
+        return location.protocol === 'https:' ? 'wss://' : 'ws://';
+    }
+
+    function openSocket(convId) {
+        if (!state.user || !convId) return;
+        closeSocket();
+        var url = wsOrigin() + location.host + '/ws/chat/' + convId + '/';
+        try {
+            // Brauzer WebSocket API header qo'yishga yo'l qo'ymaydi —
+            // shuning uchun backend `Sec-WebSocket-Protocol` ni kutadi.
+            var ws = new WebSocket(url, ['bearer', state.access]);
+            ws.onmessage = function (ev) {
+                var data;
+                try {
+                    data = JSON.parse(ev.data);
+                } catch (e) {
+                    return;
+                }
+                if (data.error) {
+                    triggerToast(data.error);
+                    return;
+                }
+                // Xabar yuborilganda oyna darhol yangilanadi
+                appendMessage(data, state.user.id);
+                loadConversations();
+            };
+            ws.onclose = function (ev) {
+                state.socket = null;
+                // 4401 = token yaroqsiz, 4403 = ruxsat yo'q → qayta urinmaslik
+                if (ev.code === 4401) {
+                    triggerToast(t('toast.sessionExpired'));
+                    logout();
+                } else if (ev.code !== 4403 && state.activeConv === convId && state.user) {
+                    setTimeout(function () { openSocket(convId); }, 4000);
+                }
+            };
+            ws.onerror = function () {
+                // onclose keladi — u yerda reconnect hal qilinadi
+            };
+            state.socket = ws;
+        } catch (e) {
+            state.socket = null;
+        }
+    }
+
+    function closeSocket() {
+        if (state.socket) {
+            var ws = state.socket;
+            state.socket = null;
+            try {
+                ws.onclose = null; /* qayta ulanishni to'xtatish */
+                ws.close();
+            } catch (e) { /* bo'sh */ }
+        }
+    }
+
+    /* WebSocket orqali kelgan xabarni chat oynasiga qo'shamiz */
+    function appendMessage(msg, myId) {
+        // Xabarlar `#chatThreadBody` da yashaydi, `#chatList` da esa
+        // suhbatlar ro'yxati — ikkalarini aralashtirmaslik kerak.
+        var list = $('chatThreadBody');
+        if (!list) return;
+        var placeholder = list.querySelector('.empty-state');
+        if (placeholder) {
+            /* Birinchi xabar — bo'sh holat yozuvini olib tashlaymiz,
+               aks holda u xabar ustida qoladi. */
+            list.innerHTML = '';
+        }
+        var mine = msg.sender_id === myId;
+        var row = document.createElement('div');
+        row.className = 'msg-row' + (mine ? ' mine' : '');
+        var div = document.createElement('div');
+        var bubble = document.createElement('div');
+        bubble.className = 'msg-bubble';
+        bubble.textContent = msg.text || '';
+        var time = document.createElement('div');
+        time.className = 'msg-time';
+        time.textContent = fmtTimeShort(msg.created_at);
+        div.appendChild(bubble);
+        div.appendChild(time);
+        row.appendChild(div);
+        list.appendChild(row);
+        list.scrollTop = list.scrollHeight;
+    }
+
+    /* ============================================================ MAP */
+    var map = null;
+    var markersLayer = null;
+
+    function initMap() {
+        if (map) return;
+        // `window.L` Leaflet'ning global obyekti. Uning o'rniga boshqa narsa
+        // tushib qolsa (masalan `function L(...)` deklaratsiyasi) xarita
+        // jimgina qoladi — shuning uchun aniq `L.map` mavjudligini tekshiramiz.
+        var leaflet = window.L;
+        if (!leaflet || typeof leaflet.map !== 'function') {
+            if (window.console && console.warn) {
+                console.warn('StuGo: Leaflet yuklanmadi — xarita ko\'rsatilmaydi.');
+            }
+            return;
+        }
+        try {
+            map = leaflet.map('map').setView([41.311081, 69.240562], 12);
+            leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+            markersLayer = leaflet.layerGroup().addTo(map);
+        } catch (e) {
+            map = null;
+            if (window.console && console.warn) console.warn('StuGo: xarita yaratilmadi —', e);
+        }
+    }
+
+    function renderMapMarkers(items) {
+        if (!map) return;
+        markersLayer.clearLayers();
+        var bounds = [];
+        items.forEach(function (item) {
+            var lat = parseFloat(item.lat);
+            var lng = parseFloat(item.lng);
+            if (!isFinite(lat) || !isFinite(lng)) return;
+            var marker = window.L.marker([lat, lng]).addTo(markersLayer);
+            var img = item.main_image
+                ? '<img src="' + esc(item.main_image) + '" style="width:120px;height:80px;object-fit:cover;border-radius:6px;">'
+                : '';
+            var html = img + '<div style="font-weight:700;margin-top:4px;">' + esc(item.title) + '</div>' +
+                '<div style="color:var(--info);font-weight:700;">' + esc(fmtPrice(item.price, item.currency)) + '</div>' +
+                '<div style="font-size:11px;color:var(--text-muted);">' +
+                esc([item.city, item.district].filter(Boolean).join(', ')) + '</div>';
+            marker.bindPopup(html);
+            marker.on('click', function () {
+                var card = $('housing-card-' + item.id);
+                if (card) {
+                    card.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    card.style.outline = '2px solid var(--tyomni-siniy)';
+                    setTimeout(function () { card.style.outline = ''; }, 1800);
+                }
+            });
+            bounds.push([lat, lng]);
+        });
+        if (bounds.length > 1) {
+            try { map.fitBounds(bounds, {padding: [40, 40], maxZoom: 15}); } catch (e) { /* bo'sh */ }
+        }
+    }
+
+    /* ============================================================ demo data
+       Young Job / Skill / Market / Food — backend'da hali API yo'q.
+       Bu ma'lumotlar demo sifatida qoladi; backend moduli qo'shilganda
+       `loadDemoSection()` ichidagi massiv API bilan almashtiriladi. */
+    /* Demo kartalari uchun matn. `tr3(uz, ru, en)` joriy tilga mos qiymatni
+       beruvchi funksiya qaytaradi — render paytida chaqiriladi, shuning uchun
+       til almashsa kartalar ham qayta chiziladi. */
+    function tr3(uz, ru, en) {
+        return function () {
+            var c = (I18N && I18N.current) || 'uz';
+            if (c === 'ru') return ru;
+            if (c === 'en') return en;
+            return uz;
+        };
+    }
+
+    /* Matn qiymatini joriy tilga ochadi (funksiya bo'lsa chaqiradi). */
+    function res(v) {
+        if (typeof v === 'function') return v();
+        if (v === null || v === undefined) return '';
+        return v;
+    }
+
+    var jobsData = [
+        {
+            icon: 'fa-laptop-code',
+            tag: tr3('Stajirovka', 'Стажировка', 'Internship'),
+            title: tr3('Junior Frontend Developer', 'Junior Frontend Developer', 'Junior Frontend Developer'),
+            desc: tr3('IT Park rezident kompaniyasida moslashuvchan grafikli stajirovka.',
+                'Гибкая графическая стажировка в компании-резиденте IT Park.',
+                'Flexible graphical internship at an IT Park resident company.'),
+            price: tr3('Qisman', 'Частичная занятость', 'Part-time')
+        },
+        {
+            icon: 'fa-language',
+            tag: tr3('Qisman ish', 'Частичная занятость', 'Part-time'),
+            title: tr3('Ingliz tili assistent o\'qituvchi', 'Преподаватель английского языка', 'English Language Assistant Teacher'),
+            desc: tr3('IELTS 7.5+ ga ega talabalar uchun tushdan keyingi smena.',
+                'Вечерние смены для студентов с IELTS 7.5+.',
+                'Evening shifts for students with IELTS 7.5+.'),
+            price: tr3('2.5 mln UZS',
+                '2.5 млн UZS',
+                '2.5M UZS')
+        },
+        {
+            icon: 'fa-hashtag',
+            tag: tr3('Junior', 'Junior', 'Junior'),
+            title: tr3('SMM Manager & Content Creator', 'SMM Manager & Content Creator', 'SMM Manager & Content Creator'),
+            desc: tr3('Startap loyihada mobilografiya va kontent yaratish.',
+                'Съёмка и создание контента в стартап-проекте.',
+                'Mobile-first shooting and content creation in a startup project.'),
+            price: tr3('3.0 mln UZS',
+                '3.0 млн UZS',
+                '3.0M UZS')
+        },
+        {
+            icon: 'fa-users',
+            tag: tr3('Ko\'ngilli', 'Волонтёр', 'Volunteer'),
+            title: tr3('EduTech Xalqaro Forum ko\'ngillisi', 'Волонтёр EduTech International Forum', 'EduTech International Forum Volunteer'),
+            desc: tr3('Xalqaro tadbirda hamrohlik va sertifikatga ega bo\'lish.',
+                'Сопровождение на международном мероприятии и получение сертификата.',
+                'Accompanying an international event and getting a certificate.'),
+            price: tr3('Sertifikat', 'Сертификат', 'Certificate')
+        },
+        {
+            icon: 'fa-palette',
+            tag: tr3('Qisman ish', 'Частичная занятость', 'Part-time'),
+            title: tr3('Grafik dizayner (Canva / Figma)', 'Графический дизайнер (Canva / Figma)', 'Graphic Designer (Canva / Figma)'),
+            desc: tr3('Ijtimoiy tarmoqlar uchun postlar yaratish va brending.',
+                'Создание постов для соцсетей и фирменный стиль.',
+                'Creating social media posts and branding.'),
+            price: tr3('2.0 mln UZS',
+                '2.0 млн UZS',
+                '2.0M UZS')
+        },
+        {
+            icon: 'fa-chart-line',
+            tag: tr3('Stajirovka', 'Стажировка', 'Internship'),
+            title: tr3('Data Analyst Trainee', 'Data Analyst Trainee', 'Data Analyst Trainee'),
+            desc: tr3('Fintech loyihada Excel va SQL bo\'yicha amaliyot va tajriba.',
+                'Практика по Excel и SQL в fintech-проекте.',
+                'Hands-on practice with Excel and SQL in a fintech project.'),
+            price: tr3('Stajirovka', 'Стажировка', 'Internship')
+        }
+    ];
+
+    var skillsData = [
+        {
+            icon: 'fa-code',
+            tag: tr3('Dasturlash', 'Программирование', 'Programming'),
+            title: tr3('Python ⇄ C++', 'Python ⇄ C++', 'Python ⇄ C++'),
+            desc: tr3('Python bilaman, C++ o\'rganishim kerak. Birgalikda tayyorlanamiz!',
+                'Знаю Python, нужно выучить C++. Будем готовиться вместе!',
+                'I know Python and need to learn C++. Let\'s study together!'),
+            user: 'Bekzod (INHA)'
+        },
+        {
+            icon: 'fa-comments',
+            tag: tr3('Tillar', 'Языки', 'Languages'),
+            title: tr3('IELTS Speaking ⇄ Turk tili', 'IELTS Speaking ⇄ Турецкий язык', 'IELTS Speaking ⇄ Turkish'),
+            desc: tr3('Ingliz tilim IELTS 8.0. Turk tilini 0 dan o\'rganishga sherik kerak.',
+                'Английский на уровне IELTS 8.0. Ищу партнёра, чтобы учить турецкий с нуля.',
+                'My English is IELTS 8.0. Looking for a partner to learn Turkish from scratch.'),
+            user: 'Umida (UzSWLU)'
+        },
+        {
+            icon: 'fa-object-group',
+            tag: tr3('Dizayn', 'Дизайн', 'Design'),
+            title: tr3('Figma UI/UX ⇄ Video Editing', 'Figma UI/UX ⇄ Video Editing', 'Figma UI/UX ⇄ Video Editing'),
+            desc: tr3('Figma interfeys dizaynini o\'rgataman, Premiere Pro o\'rganmoqchiman.',
+                'Учу интерфейс-дизайн в Figma, сам изучаю Premiere Pro.',
+                'I teach interface design in Figma and want to learn Premiere Pro.'),
+            user: 'Sardor (MDIST)'
+        },
+        {
+            icon: 'fa-file-invoice-dollar',
+            tag: tr3('Moliya', 'Финансы', 'Finance'),
+            title: tr3('Excel / Financial Modeling ⇄ SMM', 'Excel / Financial Modeling ⇄ SMM', 'Excel / Financial Modeling ⇄ SMM'),
+            desc: tr3('Moliyaviy hisobotlarni o\'rgataman, SMM strategiyani o\'rganaman.',
+                'Учу финансовую отчётность, сам изучаю SMM-стратегию.',
+                'I teach financial reporting and want to learn SMM strategy.'),
+            user: 'Diyor (WIUT)'
+        },
+        {
+            icon: 'fa-globe',
+            tag: tr3('Tillar', 'Языки', 'Languages'),
+            title: tr3('Xitoy tili (HSK 4) ⇄ Koreys tili', 'Китайский (HSK 4) ⇄ Корейский язык', 'Chinese (HSK 4) ⇄ Korean'),
+            desc: tr3('Xitoy tilida erkin muloqot qilaman, Koreys tilini o\'rganmoqchiman.',
+                'Свободно общаюсь на китайском, учу корейский.',
+                'I speak Chinese freely and want to learn Korean.'),
+            user: 'Mariya (O\'zDJTU)'
+        }
+    ];
+
+    var marketData = [
+        {
+            icon: 'fa-laptop',
+            tag: tr3('Noutbuk', 'Ноутбук', 'Laptop'),
+            title: tr3('HP Core i5 (8GB / 256GB SSD)', 'HP Core i5 (8GB / 256GB SSD)', 'HP Core i5 (8GB / 256GB SSD)'),
+            desc: tr3('Holati a\'lo. O\'qish va ofis ishlari uchun ideal.',
+                'Отличное состояние. Идеален для учёбы и офисной работы.',
+                'Excellent condition. Ideal for study and office work.'),
+            price: '$280',
+            user: 'Sardor (TDTU)',
+            img: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+            icon: 'fa-tablet-screen-button',
+            tag: tr3('Planshet', 'Планшет', 'Tablet'),
+            title: tr3('iPad Air 4 (64GB) + Apple Pencil', 'iPad Air 4 (64GB) + Apple Pencil', 'iPad Air 4 (64GB) + Apple Pencil'),
+            desc: tr3('Dars qilish va konspekt yozish uchun zo\'r holatda.',
+                'Отличное состояние для занятий и конспектов.',
+                'Great condition for classes and note-taking.'),
+            price: '$390',
+            user: 'Aziza (TTA)',
+            img: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+            icon: 'fa-book',
+            tag: tr3('Kitoblar', 'Книги', 'Books'),
+            title: tr3('IELTS Cambridge 10-18 kitoblar to\'plami', 'Комплект IELTS Cambridge 10-18', 'IELTS Cambridge 10-18 book set'),
+            desc: tr3('Barcha kitoblar toza, yozilmagan. Arzon beraman.',
+                'Все книги чистые, без пометок. Отдам недорого.',
+                'All books are clean and unmarked. Selling cheap.'),
+            price: '120 000 UZS',
+            user: 'Madina (UzSWLU)',
+            img: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+            icon: 'fa-computer-mouse',
+            tag: tr3('Aksessuar', 'Аксессуар', 'Accessory'),
+            title: tr3('Logitech MX Master 3S sichqoncha', 'Logitech MX Master 3S мышь', 'Logitech MX Master 3S mouse'),
+            desc: tr3('Dasturchilar va dizaynerlar uchun juda qulay ergo sichqoncha.',
+                'Очень удобная эргономичная мышь для программистов и дизайнеров.',
+                'A very comfortable ergonomic mouse for developers and designers.'),
+            price: '$75',
+            user: 'Eldor (TATU)',
+            img: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+            icon: 'fa-bicycle',
+            tag: tr3('Transport', 'Транспорт', 'Transport'),
+            title: tr3('Shahar velosipedi (Speedster)', 'Городской велосипед (Speedster)', 'City Bike (Speedster)'),
+            desc: tr3('Universitetga qatnash uchun juda qulay velosiped.',
+                'Очень удобный велосипед для поездок в университет.',
+                'A very convenient bike for commuting to university.'),
+            price: tr3('1.1 mln UZS',
+                '1.1 млн UZS',
+                '1.1M UZS'),
+            user: 'Javohir (O\'zMU)',
+            img: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+            icon: 'fa-desktop',
+            tag: tr3('Monitor', 'Монитор', 'Monitor'),
+            title: tr3('AOC 24-dyuym IPS monitor (75Hz)', 'AOC 24-дюймовый IPS монитор (75Hz)', 'AOC 24-inch IPS monitor (75Hz)'),
+            desc: tr3('Qo\'shimcha ekran sifatida ishlatilgan, nuqtai yo\'q.',
+                'Использовался как дополнительный экран, битых точек нет.',
+                'Used as a second screen, no dead pixels.'),
+            price: '$95',
+            user: 'Timur (Inha)',
+            img: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=800&q=80'
+        },
+        {
+            icon: 'fa-chair',
+            tag: tr3('Mebel', 'Мебель', 'Furniture'),
+            title: tr3('Ortopedik ofis kreslosi', 'Эргономичное офисное кресло', 'Ergonomic office chair'),
+            desc: tr3('Uzoq dars qilish va kompyuterda o\'tirish uchun qulay.',
+                'Удобно для долгих занятий и работы за компьютером.',
+                'Comfortable for long study sessions and computer work.'),
+            price: '450 000 UZS',
+            user: 'Kamola (TSUL)',
+            img: 'https://images.unsplash.com/photo-1580481072645-022f9a6d8310?auto=format&fit=crop&w=800&q=80'
+        }
+    ];
+
+    var foodData = [
+        {
+            icon: 'fa-percent',
+            tag: tr3('Chegirma −20%', 'Скидка −20%', 'Discount −20%'),
+            title: tr3('«FeedUp» talaba menyusi', 'Студенческое меню «FeedUp»', '"FeedUp" student menu'),
+            desc: tr3('Student ID ko\'rsatilsa har kuni 12:00–16:00 gacha 20% chegirma!',
+                'Покажите Student ID — скидка 20% каждый день с 12:00 до 16:00!',
+                'Show your Student ID for 20% off every day from 12:00 to 16:00!'),
+            code: 'STUGO20'
+        },
+        {
+            icon: 'fa-burger',
+            tag: tr3('Aksiya 1+1', 'Акция 1+1', 'Offer 1+1'),
+            title: tr3('«EVOS» Combo Combo', '«EVOS» Combo Combo', '"EVOS" Combo Combo'),
+            desc: tr3('Studentlar uchun maxsus lavash va ichimlik to\'plamiga maxsus narx.',
+                'Специальная цена на комбо (лаваш и напиток) для студентов.',
+                'A special student price on a lavash + drink combo.'),
+            code: 'EVOSSTU'
+        },
+        {
+            icon: 'fa-mug-hot',
+            tag: tr3('Chegirma −15%', 'Скидка −15%', 'Discount −15%'),
+            title: tr3('«Safia» qahva va shirinliklar', '«Safia» кофе и сладости', '"Safia" coffee & sweets'),
+            desc: tr3('Darsdan keyin do\'stlar bilan hordiq chiqarish uchun maxsus chegirma.',
+                'Специальная скидка на кофе с собой после занятий с друзьями.',
+                'A special discount for takeaway coffee after classes with friends.'),
+            code: 'SAFIA15'
+        },
+        {
+            icon: 'fa-pizza-slice',
+            tag: tr3('Chegirma −25%', 'Скидка −25%', 'Discount −25%'),
+            title: tr3('«Bellissimo Pizza» talaba seshanbasi', '«Bellissimo Pizza» студенческий вторник', '"Bellissimo Pizza" student Tuesday'),
+            desc: tr3('Har seshanba kuni barcha katlik pitsalarga talaba chegirmasi.',
+                'Каждый вторник — студенческая скидка на все большие пиццы.',
+                'Student discount on all large pizzas every Tuesday.'),
+            code: 'PIZZA25'
+        },
+        {
+            icon: 'fa-drumstick-bite',
+            tag: tr3('Chegirma −10%', 'Скидка −10%', 'Discount −10%'),
+            title: tr3('«Les Ailes» Strips Combo', '«Les Ailes» Strips Combo', '"Les Ailes" Strips Combo'),
+            desc: tr3('Talabalik guvohnomasi bilan barcha filiallarda amal qiladi.',
+                'Действует во всех филиалах по студенческому билету.',
+                'Valid at all branches with a student ID.'),
+            code: 'LESAILES'
+        },
+        {
+            icon: 'fa-utensils',
+            tag: tr3('Chegirma −15%', 'Скидка −15%', 'Discount −15%'),
+            title: tr3('«Wendy\'s» burger to\'plamlari', '«Wendy\'s» бургер-сеты', '"Wendy\'s" burger combos'),
+            desc: tr3('Tushlik vaqti talabalar uchun maxsus chegirmali menyular.',
+                'Специальное льготное меню для студентов в обед.',
+                'Special discounted menu for students at lunchtime.'),
+            code: 'WENDYSTU'
+        }
+    ];
+
+    /* Barcha demo bo\'limlarni qayta chizish (til almashganda chaqiriladi). */
+    function renderDemoSections() {
+        renderGridItems('jobsGrid', jobsData, 'Job');
+        renderGridItems('skillsGrid', skillsData, 'Skill');
+        renderGridItems('marketGrid', marketData, 'Market');
+        renderGridItems('foodGrid', foodData, 'Food');
+    }
+
+    function renderGridItems(targetId, dataList, type) {
+        var container = $(targetId);
+        if (!container) return;
+        container.innerHTML = '';
+        dataList.forEach(function (item) {
+            var card = document.createElement('div');
+            card.className = 'card-box';
+
+            var actionBtn = '<button class="btn btn-primary" onclick="handleContactAction(\'job\')">' + t('demo.apply') + '</button>';
+            var metaRight = '<span class="meta-price" style="font-weight:700; color:var(--info);">' +
+                esc(res(item.price) || res(item.code) || t('housing.free')) + '</span>';
+            if (type === 'Skill') actionBtn = '<button class="btn btn-outline" onclick="handleContactAction(\'telegram\')">' + t('demo.contact') + '</button>';
+            if (type === 'Market') actionBtn = '<button class="btn btn-primary" onclick="handleContactAction(\'telegram\')">' + t('demo.buy') + '</button>';
+            if (type === 'Food') actionBtn = '<button class="btn btn-outline" onclick="copyPromo(\'' + esc(item.code) + '\')">' + t('demo.promo') + '</button>';
+
+            var imgHTML = '';
+            if (item.img) {
+                imgHTML = '<img src="' + esc(item.img) + '" alt="' + esc(res(item.title)) +
+                    '" class="card-img-top" onclick="openLightbox(this.src)">';
+            }
+
+            card.innerHTML =
+                imgHTML +
+                '<div class="card-box-content">' +
+                '<div>' +
+                '<span class="card-tag"><i class="fa-solid ' + esc(item.icon) + '"></i> ' +
+                esc(res(item.tag)) + '</span>' +
+                '<h3 style="margin-bottom:8px; font-size:18px; color:#FFFFFF;">' + esc(res(item.title)) + '</h3>' +
+                '<p style="color:#94A3B8; font-size:14px; margin-bottom:12px;">' + esc(res(item.desc)) + '</p>' +
+                (item.user
+                    ? '<span class="verified-user"><i class="fa-solid fa-circle-check"></i> ' +
+                      esc(item.user) + '</span>'
+                    : '') +
+                '</div>' +
+                '<div style="display:flex; justify-content:space-between; align-items:center; ' +
+                'border-top:1px solid rgba(255,255,255,0.1); padding-top:14px; margin-top:10px;">' +
+                metaRight + actionBtn +
+                '</div></div>';
+            container.appendChild(card);
+        });
+    }
+
+    function handleContactAction(actionType) {
+        if (!state.user) {
+            openAuthModal();
+            triggerToast(t('toast.loginFirst'));
+            return;
+        }
+        if (actionType === 'job') {
+            triggerToast(t('toast.resumeSent'));
+        } else {
+            triggerToast(t('common.demoMode'));
+        }
+    }
+
+    function copyPromo(code) {
+        if (!code) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).then(function () {
+                triggerToast(t('toast.promoCopied') + code);
+            }).catch(function () {
+                triggerToast(t('toast.promo') + code);
+            });
+        } else {
+            triggerToast(t('toast.promo') + code);
+        }
+    }
+
+    /* ============================================================ init */
+    window.addEventListener('DOMContentLoaded', function () {
+        // Rejim (yorug'/qora) — `<head>` skripti atributni allaqachon
+        // qo'ygan; bu faqat tugma holatini va `title` matnini to'g'rilaydi.
+        Theme.init();
+
+        // Tilni avval qo'llaymiz — qolgan render funksiyalari `t()` ishlatadi.
+        I18N.initLangSwitch();
+        I18N.applyI18n();
+
+        initMap();
+        loadTokens();
+
+        // Mavju e'lonni ishga tushirish uchun token kerak (backend IsAuthenticated).
+        // Token bo'lsa sessiyani tiklaymiz, bo'lmasa kirish oynasi ko'rsatiladi.
+        if (state.access) {
+            loadProfile()
+                .then(function () {
+                    renderAuthState();
+                    if (state.user) {
+                        afterLogin();
+                    } else {
+                        renderAuthState();
+                    }
+                });
+        } else {
+            renderAuthState();
+        }
+
+        renderGridItems('jobsGrid', jobsData, 'Job');
+        renderGridItems('skillsGrid', skillsData, 'Skill');
+        renderGridItems('marketGrid', marketData, 'Market');
+        renderGridItems('foodGrid', foodData, 'Food');
+
+        // Til o'zgarganda `data-i18n` faqat statik matnlarni yangilaydi.
+        // JS bilan chizilgan qismlar (nav, e'lon kartalari, chat, demo
+        // bo'limlar) shu yerda qayta chiziladi.
+        I18N.onLangChange(function () {
+            renderAuthState();
+            renderDemoSections();
+            renderListings(state.listings);
+            renderChat();
+            renderAmenities();
+            // `renderCityOptions()` `t('housing.allCities')` ni chizilgan
+            // paytda hisoblaydi — til o'zgarganda qayta chaqirilishi shart,
+            // aks holda filtr "Barcha shaharlar" eski tilda qoladi.
+            renderCityOptions();
+        });
+
+        renderHousingSkeletons(3);
+        showSection('home');
+    });
+</script>
+</body>
+
+</html>

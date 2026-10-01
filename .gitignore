@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.idea/
+.vscode/
+*.sqlite3
+*.sqlite3-journal
+
+# Django
+/media/
+/staticfiles/
+/node_modules/
+
+# Loglar va vaqtinchalik fayllar
+*.log
+server.log
+server.err.log
+bot.log
+bot.err.log
+*_tmp.py
+hex_tmp.py
+tz.txt
+
+# Tizim
+.DS_Store
+Thumbs.db
+desktop.ini

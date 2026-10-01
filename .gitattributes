@@ -1,0 +1,31 @@
+# Windows-da CRLF, Linux/macOS-da LF. Checkout'da `core.autocrlf`
+# sozlamasiga bog'liq bo'lib qolmasligi uchun `.gitattributes` bilan
+# bir xil qilib belgilaymiz — aks holda har bir `git add`da ogohlantirish
+# chiqadi va chalkash diff'lar paydo bo'ladi.
+* text=auto eol=lf
+
+*.py   text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+*.md   text eol=lf
+*.txt  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Windows skriptlari — cmd.exe LFni ko'rib chiqmaydi
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary

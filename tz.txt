@@ -1,0 +1,390 @@
+========================================================TEXNIK TOPSHIRIQ (TZ)
+Loyiha nomi: StuGo — Studentlar Ekotizimi Platformasi
+========================================================
+Versiya: 1.0 (qoralama)          Sana: 2026-09-30
+Slogan: "Students helping students"
+========================================================
+
+1. LOYIHA HAQIDA UMUMIY MA'LUMOT
+--------------------------------------------------------
+Loyiha maqsadi — mobil ilova va veb-platforma yaratish. U
+studentlar va abituriyentlarga boshqa shaharga o'qishga
+kelganda turar joy (kvartira), roommate (xonadosh), ish, bilim
+almashish, buyum oldi-sotdisi va arzon ovqatlanish bo'yicha
+yordam beradi. Barchasi bitta ishonchli, verifikatsiyalangan
+muhitda bo'ladi.
+
+Hal qilinadigan muammo:
+- Maklerlar kvartira topganlik uchun katta haq oladi (ijara
+  narxining 50% va undan ko'p).
+- Roommate topish uzoq davom etadi, ishonchsiz va xavfli: kim
+  bilan yashash oldindan noma'lum.
+- Ota-onalar farzandi kim bilan yashayotganini bilmaydi.
+- Studentlar uchun ish, skill, ishlatilgan buyum va chegirmalar
+  tarqoq joylarda (Telegram, Instagram) bo'ladi.
+
+Loyiha maqsadi — studentlar makler xizmatisiz to'g'ridan-to'g'ri
+kvartira va roommate topa oladigan, keyinchalik esa kundalik
+hayot uchun kerakli barcha xizmatlarni o'z ichiga oladigan
+ekotizim yaratish.
+
+2. TEXNOLOGIYALAR STACK
+--------------------------------------------------------
+- Backend framework   : Python, Django + Django REST Framework
+- Real vaqt chat      : Django Channels (WebSocket) + Redis
+- ORM / Ma'lumotlar bazasi : PostgreSQL (+ PostGIS geo-qidiruv)
+- Autentifikatsiya    : JWT (Access + Refresh, SimpleJWT)
+- Fon vazifalari       : Celery + Redis (SMS, push, rasm)
+- Validatsiya         : DRF serializers / Pydantic
+- Server              : Uvicorn / Gunicorn + Nginx
+- Hujjatlashtirish     : Swagger / OpenAPI (drf-spectacular)
+- Versiya nazorati    : Git + GitHub (CI/CD — GitHub Actions)
+- SMS                 : Mahalliy provayder (Eskiz.uz, PlayMobile)
+- Push                : Firebase Cloud Messaging
+- Fayl saqlash        : S3-mos storage
+- Deploy              : Docker, Nginx
+- Mobil ilova         : Flutter yoki React Native
+- Veb                 : React / Next.js
+
+3. LOYIHA TUZILMASI
+--------------------------------------------------------
+config/                 # settings, urls, asgi, wsgi
+apps/
+├── users/              # akkaunt, profil, verifikatsiya
+├── housing/            # kvartira e'lonlari
+├── roommates/          # anketa, matching
+├── chat/               # xabarlar
+├── notifications/      # bildirishnomalar
+├── reports/            # shikoyatlar, moderatsiya
+└── core/               # umumiy yordamchi kodlar
+
+4. MA'LUMOTLAR BAZASI MODELLARI
+--------------------------------------------------------
+1) User
+   - id, phone, email, role, is_verified, created_at
+
+2) Profile
+   - user, full_name, avatar, birth_date, gender, city,
+     university, faculty, course, bio
+
+3) VerificationRequest
+   - user, method, document_image, selfie, status,
+     reviewed_by, reject_reason
+
+4) Listing (kvartira e'loni)
+   - owner, title, description, type, price, currency, deposit,
+     city, district, lat, lng, rooms, area, floor,
+     available_from, status
+
+5) ListingImage
+   - listing, image, order
+
+6) Amenity / ListingAmenity
+   - jihozlar va bog'lanish
+
+7) RoommateProfile
+   - user, budget_min, budget_max, city, move_in_date,
+     sleep_schedule, cleanliness, smoking, guests, pets,
+     gender_pref
+
+8) Match
+   - user_a, user_b, score, status
+
+9) Favorite
+   - user, listing
+
+10) Conversation / Message
+   - participants, sender, text, image, read_at
+
+11) Report
+   - reporter, target_type, target_id, reason, status
+
+12) Notification
+   - user, type, payload, is_read
+
+13) Block
+   - blocker, blocked
+
+5. FUNKSIONAL TALABLAR (MODULLAR BO'YICHA)
+--------------------------------------------------------
+
+5.1. Autentifikatsiya (Auth)
+  - Telefon raqam + SMS (OTP) orqali ro'yxatdan o'tish
+    (asosiy usul, O'zbekiston uchun).
+  - Qo'shimcha: Google orqali kirish, email.
+  - Parolni tiklash, sessiyalarni boshqarish
+    (JWT: access + refresh).
+  - Bir telefon raqam = bir akkaunt.
+  - POST /auth/send-otp, POST /auth/verify-otp,
+    POST /auth/refresh
+
+5.2. Profil va Verifikatsiya
+  - Profil maydonlari: ism, familiya, rasm, yosh, jins, shahar,
+    universitet, fakultet, kurs, qisqa bio, tillar, qiziqishlar.
+  - Verifikatsiya usullari (kamida bittasi):
+      * Universitet email (@university.uz) tasdiqlash (avtomatik)
+      * Student ID karta / talabalik guvohnomasi rasmi + selfi
+        (moderator qo'lda tekshiradi)
+      * Abituriyentlar uchun: abituriyent ID yoki ro'yxatdan
+        o'tganlik hujjati
+  - Statuslar: Verifikatsiya qilinmagan → Kutilmoqda →
+    Tasdiqlangan / Rad etilgan.
+  - Tasdiqlangan foydalanuvchi profilida "Verified student"
+    belgisi ko'rinadi.
+  - GET/PATCH /profile/me, POST /verification/requests
+
+5.3. Housing (Kvartira e'lonlari)
+  - E'lon maydonlari: sarlavha, tavsif, turi (butun kvartira /
+    xona / joy), narx (USD/UZS), depozit, shahar, tuman, manzil
+    (xaritada nuqta), xonalar soni, maydoni, qavati, jihozlar
+    (wifi, kir yuvish mashinasi va h.k.), rasmlar (kamida 3,
+    ko'pi bilan 15), hozir yashovchilar soni va jinsi, shartlar
+    (chekish, uy hayvonlari), bo'sh bo'lish sanasi.
+  - Funksiyalar:
+      * E'lon yaratish, tahrirlash, arxivlash, o'chirish
+      * Qidiruv va filtrlar: shahar, tuman, narx oralig'i,
+        xonalar soni, universitetga masofa, jihozlar
+      * Xarita ko'rinishi (Google Maps yoki OpenStreetMap)
+      * Sevimlilarga qo'shish
+      * Egasiga bevosita xabar yozish (makler yo'q)
+      * E'lon egasi statusi ko'rsatiladi (student yoki kvartira
+        egasi)
+      * Shikoyat qilish (fake e'lon, makler, firibgarlik)
+      * Makler nazorati: bir foydalanuvchi bir vaqtda ko'p e'lon
+        joylasa (masalan 3 dan ortiq), avtomatik moderatsiyaga
+        yuboriladi
+  - GET/POST /listings, GET/PATCH/DELETE /listings/{id},
+    POST /listings/{id}/favorite
+
+5.4. Roommate (Sherik qidirish)
+  - Roommate anketa: byudjet, shahar/tuman, kirish sanasi, jins
+    afzalligi, uyqu tartibi, tozalik darajasi, chekish, mehmon
+    chaqirish, uy hayvoni, o'qish/ish jadvali.
+  - Ikki yo'nalish: "Menda kvartira bor, sherik kerak" va
+    "Kvartira ham, sherik ham qidiryapman".
+  - Moslik foizi (matching score): anketa javoblari asosida
+    hisoblanadi (MVP da oddiy vaznli algoritm).
+  - Tavsiyalar ro'yxati (moslik bo'yicha saralangan).
+  - Faqat verified foydalanuvchilar bir-birini roommate
+    sifatida ko'ra oladi.
+  - GET/PUT /roommates/profile, GET /roommates/matches
+
+5.5. Chat
+  - 1-ga-1 xabar almashish (matn, rasm).
+  - Real vaqt rejimida (WebSocket).
+  - Chatdan bloklash va shikoyat qilish.
+  - Telefon raqam va shaxsiy ma'lumotlar foydalanuvchi
+    roziligisiz ko'rsatilmaydi.
+  - Push-bildirishnomalar.
+  - GET /conversations, GET/POST /conversations/{id}/messages,
+    WebSocket /ws/chat/
+
+5.6. Bildirishnomalar
+  - Yangi xabar, verifikatsiya natijasi, e'longa qiziqish,
+    yangi mos roommate.
+  - Kanallar: push, email (ixtiyoriy), ilova ichida.
+
+5.7. Reports (Shikoyatlar va moderatsiya)
+  - POST /reports, POST /users/{id}/block
+
+5.8. Admin panel
+  - Foydalanuvchilar ro'yxati va boshqaruvi (bloklash,
+    verifikatsiya).
+  - Verifikatsiya so'rovlari navbati (tasdiqlash / rad etish +
+    sabab).
+  - E'lonlar moderatsiyasi.
+  - Shikoyatlar ko'rib chiqish.
+  - Statistika: ro'yxatdan o'tish, faol foydalanuvchilar,
+    e'lonlar, konversiya.
+  - /admin/ (Django Admin + maxsus moderatsiya sahifalari)
+
+6. FOYANALANUVCHI ROLLARI
+--------------------------------------------------------
+- Mehmon              : E'lonlarni cheklangan ko'rish, ro'yxatdan
+                        o'tish
+- Foydalanuvchi       : Profil, e'lonlarni ko'rish, chatga
+  (verifikatsiyasiz)    cheklov
+- Verified student    : To'liq imkoniyatlar — e'lon berish, chat,
+                        roommate matching
+- Kvartira egasi      : Faqat kvartira e'lonlarini boshqarish
+- Ota-ona (Faza 4)    : Farzand roommate'ining verified
+                        statusini ko'rish
+- Moderator           : E'lon va shikoyatlarni ko'rib chiqish
+- Admin               : To'liq boshqaruv, statistika
+
+7. MA'QSADLI AUDITORIYA
+--------------------------------------------------------
+- Studentlar (asosiy) : boshqa shaharga o'qishga kelganlar,
+                        kvartira yoki roommate qidiruvchilar
+- Abituriyentlar      : o'qishga kirishdan oldin joy qidiruvchilar
+- Kvartira egalari    : studentlarga ijaraga beruvchilar
+- Ota-onalar          : farzandining xavfsizligini kuzatuvchilar
+                        (faqat ko'rish huquqi bilan)
+- Bizneslar (keyingi bosqich) : kafe, restoran, ish beruvchilar
+
+8. LOYIHA BOSQICHLARI
+--------------------------------------------------------
+MVP (Faza 1) : Auth, Verifikatsiya, Housing, Roommate, Chat,
+                Admin. Asosiy muammo: kvartira va roommate.
+Faza 2       : Student Market, Premium obuna, Boost e'lonlar.
+                Birinchi daromad.
+Faza 3       : Young Job, Student Food (hamkor bizneslar).
+                B2B daromad.
+Faza 4       : Skill Exchange, ota-ona kabineti, AI matching.
+                Ekotizimni to'ldirish.
+
+Muhim: MVP da faqat 1-faza qilinadi. Hamma modulni birdaniga
+qilish loyihani cho'zib yuboradi va tayyor bo'lmay qoladi.
+
+9. KEYINGI BOSQICH MODULLARI
+--------------------------------------------------------
+9.1. Student Market (Faza 2)
+  - Noutbuk, telefon, kitob, mebel va boshqa buyumlar e'lonlari.
+  - Kategoriya, holati (yangi/ishlatilgan), narx, savdolashish
+    chatda. Boost e'lonlar.
+
+9.2. Young Job (Faza 3)
+  - Internship, part-time, junior, volunteer vakansiyalari.
+  - Ish beruvchi kabineti, CV yaratish, ariza yuborish,
+    vakansiyani yuqoriga chiqarish (pullik).
+
+9.3. Student Food (Faza 3)
+  - Hamkor kafe/restoranlar profili, studentlarga chegirmalar,
+    QR kod yoki promo-kod orqali chegirmani tasdiqlash.
+  - Xaritada ko'rish.
+
+9.4. Skill Exchange (Faza 4)
+  - Foydalanuvchi "Menda bor skill" va "O'rganmoqchi skill" ni
+    kiritadi.
+  - Tizim o'zaro mos juftliklarni topadi (masalan: Python biladi
+    ↔ C++ o'rganmoqchi, English ↔ Turkish).
+  - Sessiya rejalashtirish, baholash.
+
+10. NOFUNKSIONAL TALABLAR
+--------------------------------------------------------
+- Ishlash tezligi        : API javobi < 500 ms (95% so'rovlar)
+- Bir vaqtdagi foydalanuvchilar : MVP da 1 000 gacha, kengayishga
+                        tayyor arxitektura
+- Mavjudlik              : 99% uptime
+- Tillar                 : O'zbek (lotin), Rus, Ingliz (i18n)
+- Platformalar           : Android, iOS, veb (responsive)
+- Zaxira nusxa           : Kunlik avtomatik backup (DB + media)
+- Loglar va monitoring   : Sentry, server monitoringi
+- Rasm optimallashtirish : Yuklashda siqish, thumbnail yaratish
+- Sekin internet         : Yengil interfeys, kesh, lazy loading
+
+11. MUvaffaqiyat MEZONLARI (KPI)
+--------------------------------------------------------
+- Verifikatsiyadan o'tgan foydalanuvchilar      : 500
+- Joylangan faol e'lonlar                      : 150+
+- Muvaffaqiyatli topilgan kvartira/roommate     : 30+
+- 30 kunlik retention                          : 25%+
+- Bir foydalanuvchining o'rtacha chat soni      : 3+
+  (MVP, dastlabki 3 oy uchun maqsad)
+
+12. XAVFSIZLIK VA HUQUQIY TALABLAR
+--------------------------------------------------------
+- Parollar va tokenlar xavfsiz saqlanadi; barcha trafik HTTPS
+  orqali.
+- Verifikatsiya hujjatlari (ID, selfi) shifrlangan holda, yopiq
+  storage'da saqlanadi; faqat moderator/admin ko'radi;
+  tasdiqlangandan keyin ma'lum muddatdan so'ng o'chiriladi.
+- Rate limiting (OTP, login, xabar yuborish) — spam va
+  brute-force'ga qarshi.
+- Foydalanuvchi telefon raqami boshqalarga avtomatik
+  ko'rsatilmaydi.
+- Kiritilgan ma'lumotlarni validatsiya qilish (XSS, SQL
+  injection himoyasi).
+- Shaxsiy ma'lumotlar to'g'risidagi O'zbekiston qonunchiligiga
+  rioya qilish, Foydalanish shartlari va Maxfiylik siyosati
+  yozish. (Bu qismni albatta yurist bilan tekshiring.)
+- Voyaga yetmaganlar (abituriyentlar 18 yoshdan kichik bo'lishi
+  mumkin) uchun alohida cheklovlar: ota-ona roziligi, yoshi
+  kattalar bilan yashash e'lonlariga cheklov.
+- Firibgarlikdan ogohlantirish: "Oldindan pul o'tkazmang" degan
+  ko'rsatma e'lon sahifasida.
+
+13. DAROMAD MODELI
+--------------------------------------------------------
+- Premium obuna                 : Faza 2, ~$1/oy (12 000 so'm)
+- Boost / premium e'lonlar      : Faza 2, kichik bir martalik
+                                  to'lov
+- Hamkor bizneslar reklamasi    : Faza 3, $10/oydan
+- Ish beruvchilarning premium vakansiyalari : Faza 3, paketlar
+                                  bo'yicha
+
+Premium imkoniyatlari (taklif): kengaytirilgan filtrlar, ko'proq
+matching, e'lonni yuqoriga chiqarish, "kim ko'rdi" statistikasi.
+Muhim: asosiy funksiyalar (qidirish, chat) bepul qoladi, chunki
+dastlabki maqsad — ishonch va foydalanuvchi bazasi.
+
+14. ISH REJASI (TAXMINIY)
+--------------------------------------------------------
+- Tayyorgarlik: dizayn (UX/UI), Figma prototip : 3–4 hafta
+- Backend: auth, profil, verifikatsiya             : 3 hafta
+- Backend: housing, roommate, matching             : 4 hafta
+- Chat va bildirishnomalar                        : 2–3 hafta
+- Mobil ilova (parallel)                          : 8–10 hafta
+- Admin panel, moderatsiya                         : 2 hafta
+- Test va tuzatishlar                              : 3 hafta
+- Pilot: 500 student, 1–2 universitet             : 4+ hafta
+
+Jami MVP: taxminan 4–5 oy (jamoa hajmiga qarab o'zgaradi).
+
+15. MVP QABUL QILISH MEZONLARI
+--------------------------------------------------------
+[ ] Foydalanuvchi telefon raqam orqali ro'yxatdan o'ta oladi.
+[ ] Student verifikatsiya so'rovini yuborib, moderator uni
+    tasdiqlay/rad eta oladi.
+[ ] Verified foydalanuvchi kvartira e'loni joylay oladi (rasm,
+    xarita, narx bilan).
+[ ] Qidiruv filtrlar bilan ishlaydi.
+[ ] Roommate anketa to'ldiriladi va moslik foizi bilan tavsiyalar
+    chiqadi.
+[ ] Ikki foydalanuvchi real vaqtda chat qila oladi.
+[ ] Shikoyat qilish va bloklash ishlaydi.
+[ ] Admin panel orqali moderatsiya va statistika ko'rinadi.
+[ ] Ilova Android va iOS da ishlaydi, 3 tilni
+    qo'llab-quvvatlaydi.
+
+16. RISKLAR VA YECHIMLAR
+--------------------------------------------------------
+- "Tovuq-tuxum" muammosi: e'lon yo'q bo'lsa foydalanuvchi
+  kelmaydi.
+  Yechim: boshlanishda bitta shahar va bitta-ikkita universitet;
+  e'lonlarni qo'lda to'ldirish; student ambassadorlar.
+
+- Maklerlar platformaga kirib olishi.
+  Yechim: verifikatsiya, e'lon limiti, shikoyat tizimi,
+  moderatsiya.
+
+- Firibgarlik.
+  Yechim: Verified belgi, shikoyat tugmasi, ogohlantirishlar.
+
+- Shaxsiy hujjatlar sizib chiqishi.
+  Yechim: shifrlash, cheklangan kirish, tez o'chirish siyosati.
+
+- Juda ko'p modul — diqqat tarqalishi.
+  Yechim: MVP da faqat Housing + Roommate.
+
+- Daromad yo'qligi.
+  Yechim: avval foydalanuvchi bazasi, keyin bosqichma-bosqich
+  monetizatsiya.
+
+17. OCHIQ SAVOLLAR (ANIQLASH KERAK)
+--------------------------------------------------------
+1. Boshlanish shahri va universitetlar qaysilar (masalan,
+   Toshkent)?
+2. Kvartira egalari ham ro'yxatdan o'ta oladimi yoki faqat
+   studentlar e'lon beradimi?
+3. Jamoa tarkibi: nechta dasturchi, dizayner bor? Budjet
+   qancha?
+4. Mobil ilovani birinchi qilamizmi yoki avval veb/Telegram bot
+   orqali g'oyani tekshiramizmi?
+5. Ota-ona funksiyasi MVP ga kiradimi yoki keyinroqmi?
+6. StuGo uchun domen (stugo.uz), Instagram/Telegram nomlari
+   va logotip (brend) tayyarmi?
+
+========================================================
+
+

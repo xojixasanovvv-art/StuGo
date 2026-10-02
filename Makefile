@@ -41,6 +41,22 @@ test-reverse:
 superuser:
 	$(PY) manage.py createsuperuser
 
+# Do'kon uchun demo ma'lumot: make seed_shop
+# Kategoriya, mahsulot va demo kartalarni yaratadi (idempotent).
+seed_shop:
+	$(PY) manage.py seed_shop
+
+# Demo ma'lumotni tozalash va qayta yaratish: make seed_shop_fresh
+seed_shop_fresh:
+	$(PY) manage.py seed_shop --flush
+
+# Loyiha summary xabarini Telegram'ga yuborish.
+# `runpy` kerak: Django `manage.py shell` stdin kodini
+# `__name__ == '__main__'` bilan bajarmaydi.
+# Chat ID ni almashtirmoq uchun: STUGO_TELEGRAM_CHAT_ID=123 make telegram-summary
+telegram-summary:
+	$(PY) manage.py shell -c "import runpy; runpy.run_path('scripts/send_project_summary.py', run_name='__main__')"
+
 # Yangi app yaratish: make app APP=nomi
 app:
 	$(PY) manage.py startapp apps
@@ -51,4 +67,4 @@ install:
 
 # Staticallyk fayllarni yig'ish: make collect
 collect:
-	$(PY) manage.py collectstatic --noinput
+	$(PY) manage.py collectstatic --noinputn

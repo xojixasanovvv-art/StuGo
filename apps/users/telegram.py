@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import secrets
 import urllib.error
 import urllib.parse
@@ -126,11 +127,199 @@ def bot_username() -> str | None:
 
 
 def send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> dict:
-    """Foydalanuvchiga xabar yuboradi."""
+    """Foydalanuvchiga xabar yuboradi.
+
+    Telegram xabar uzunligini 4096 belgi bilan cheklaydi. Uzunroq matn
+    yuborilganda API `Bad Request: message is too long` beradi — bu yerda
+    matn avtomatik bo'laklarga bo'linadi (bo'laklar bir-biriga bog'lanadi).
+    """
+    chunks = _split_message(text, _MESSAGE_LIMIT)
+    last: dict = {}
+    for i, chunk in enumerate(chunks):
+        # Birinchi bo'lakda "1/3" kabi belgi qo'shilmaydi — u ortiqcha
+        # chalkashlik keltiradi. Faqat 2+ bo'lakda belgi kerak.
+        body = chunk if len(chunks) == 1 else f"[{i + 1}/{len(chunks)}]\n{chunk}"
+        last = send_message_once(chat_id, body, reply_markup if i == 0 else None)
+    return last
+
+
+def send_message_once(chat_id: int, text: str, reply_markup: dict | None = None) -> dict:
+    """Bitta xabar yuboradi (bo'laklarga ajratmaydi)."""
     payload: dict = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
     if reply_markup:
         payload["reply_markup"] = reply_markup
     return _call("sendMessage", payload)
+
+
+def send_document(
+    chat_id: int,
+    document: "os.PathLike[str] | str | bytes",
+    caption: str = "",
+    filename: str = "",
+) -> dict:
+    """Fayl yuboradi (multi-part/form-data orqali).
+
+    `document` — fayl yo'li yoki baytlar. `caption` — 1024 belgi bilan
+    cheklangan (Telegram chegarasi), oshiladicha kesib tashlaydi.
+
+    Nima uchun `_call` ishlatilmaydi: u faqat JSON yuboradi, fayl esa
+    `multipart/form-data` shaklida `boundary` bilan yuborilishi kerak —
+    bu boshqacha protokol.
+    """
+    token = _token()
+    if not token:
+        raise TelegramError("TELEGRAM_BOT_TOKEN sozlanmagan.")
+
+    if isinstance(document, (str, os.PathLike)):
+        path = os.fspath(document)
+        if not os.path.isfile(path):
+            raise TelegramError(f"Fayl topilmadi: {path}")
+        with open(path, "rb") as fh:
+            data = fh.read()
+        name = filename or os.path.basename(path)
+    else:
+        data = document
+        name = filename or "document.bin"
+
+    url = f"{_API}/bot{token}/sendDocument"
+    fields = {"chat_id": str(chat_id)}
+    if caption:
+        fields["caption"] = caption[:_CAPTION_LIMIT]
+
+    body, content_type = _encode_multipart(fields, "document", name, data)
+    req = urllib.request.Request(
+        url, data=body, headers={"Content-Type": content_type}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise TelegramError(f"HTTP {exc.code}: {exc.reason}") from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise TelegramError(str(exc)) from exc
+
+    if not payload.get("ok"):
+        raise TelegramError(payload.get("description", "Telegram javob bermadi."))
+    return payload.get("result") or {}
+
+
+def send_photo(
+    chat_id: int,
+    photo: "os.PathLike[str] | str | bytes",
+    caption: str = "",
+) -> dict:
+    """Rasm yuboradi (fayldan yoki URL dan)."""
+    token = _token()
+    if not token:
+        raise TelegramError("TELEGRAM_BOT_TOKEN sozlanmagan.")
+
+    url = f"{_API}/bot{token}/sendPhoto"
+    payload: dict = {"chat_id": chat_id}
+    if caption:
+        payload["caption"] = caption[:_CAPTION_LIMIT]
+
+    # URL yoki path bo'lsa — `photo` maydoniga URL qo'yamiz, Telegram
+    # o'zi yuklab oladi (fayl yuklamasligimiz kerak, shuning uchun oddiy
+    # JSON so'rov yetarli). Bayt bo'lsa — `multipart` bilan yuboramiz.
+    if isinstance(photo, (str, os.PathLike)):
+        value = os.fspath(photo)
+        if value.startswith(("http://", "https://")):
+            payload["photo"] = value
+            return _call("sendPhoto", payload)
+        with open(value, "rb") as fh:
+            data = fh.read()
+        name = os.path.basename(value) or "photo.jpg"
+    else:
+        data = photo
+        name = "photo.jpg"
+
+    body, content_type = _encode_multipart(
+        {"chat_id": str(chat_id), **({"caption": payload["caption"]} if caption else {})},
+        "photo", name, data,
+    )
+    req = urllib.request.Request(
+        url, data=body, headers={"Content-Type": content_type}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise TelegramError(f"HTTP {exc.code}: {exc.reason}") from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise TelegramError(str(exc)) from exc
+
+    if not result.get("ok"):
+        raise TelegramError(result.get("description", "Telegram javob bermadi."))
+    return result.get("result") or {}
+
+
+# --- Yordamchilar -----------------------------------------------------------
+
+_MESSAGE_LIMIT = 4096   # Telegram `sendMessage` chegarasi
+_CAPTION_LIMIT = 1024   # `caption` (rasm/fayl izohi) chegarasi
+
+
+def _split_message(text: str, limit: int) -> list[str]:
+    """Matnni `limit` dan oshmaydigan bo'laklarga ajratadi.
+
+    Bo'laklash qoidalari:
+      * avval bo'sh qatorlar (`\\n\\n\\n`) bo'yin qilinadi — Telegram'da
+        "Ko'proq" tugmasi shu yerda chiqadi va bo'lak chegarasi aniq
+        bo'lib ko'rinadi;
+      * agar bitta qator o'zi chegaradan uzun bo'lsa, bo'sh joy bo'yicha
+        kesiladi;
+      * hech qanday joy topilmasa (uzun bitta so'z) — qat'iy kesiladi.
+    """
+    if len(text) <= limit:
+        return [text]
+
+    chunks: list[str] = []
+    current = ""
+    for paragraph in text.split("\n\n"):
+        candidate = paragraph if not current else f"{current}\n\n{paragraph}"
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+            current = ""
+        # Hali sig'madi — endi bu qatorni o'zi bo'lak qilamiz
+        while len(paragraph) > limit:
+            cut = paragraph.rfind(" ", 0, limit)
+            if cut <= 0:
+                cut = limit
+            chunks.append(paragraph[:cut])
+            paragraph = paragraph[cut:].lstrip()
+        current = paragraph
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _encode_multipart(
+    fields: dict[str, str], file_field: str, filename: str, data: bytes
+) -> tuple[bytes, str]:
+    """`multipart/form-data` tanani yasaydi (Telegram Bot API shu formatni talab qiladi).
+
+    Qo'lda yoziladi, chunki `requests` bu loyihada yo'q va faqat shu
+    uchun paket qo'shish o'rin emas.
+    """
+    boundary = f"----StuGoBoundary{secrets.token_hex(16)}"
+    parts: list[bytes] = []
+    for key, value in fields.items():
+        parts.append(
+            f'--{boundary}\r\n'
+            f'Content-Disposition: form-data; name="{key}"\r\n\r\n'
+            f"{value}\r\n".encode("utf-8")
+        )
+    parts.append(
+        f'--{boundary}\r\n'
+        f'Content-Disposition: form-data; name="{file_field}"; filename="{filename}"\r\n'
+        f"Content-Type: application/octet-stream\r\n\r\n".encode("utf-8")
+    )
+    parts.append(data)
+    parts.append(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+    return b"".join(parts), f"multipart/form-data; boundary={boundary}"
 
 
 # --- Bog'lanish kodi (deep link) -------------------------------------------

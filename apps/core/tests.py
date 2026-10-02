@@ -682,6 +682,78 @@ class ListingTests(CacheResetMixin, APITestCase):
         self.assertIn("results", res.data)
         self.assertIn("count", res.data)
 
+    # -- URL tartib regressiyasi -------------------------------------------
+
+    def test_my_listings_endpoint_is_not_shadowed_by_router(self):
+        """`GET /listings/mine/` 404 QILMASIN.
+
+        Regressiya: `urlpatterns` da `path("", include(router.urls))`
+        `listings/mine/` dan OLDIN turar edi. Router `listings/<pk>/`
+        uchun `[^/.]+` regex'ini yaratadi, shuning uchun `mine` `pk`
+        sifatida ushlanib, `get_object()` `int('mine')` ga urinib
+        `ValueError` berardi -> 404.
+
+        Bu test muammoni qaytarib qo'yadi: yo'l routerdan oldin
+        ko'chirilsa, test yana `404` qaytaradi.
+        """
+        self._auth(self.owner)
+        res = self.client.get("/api/v1/listings/mine/")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("results", res.data)
+
+    def test_my_listings_returns_only_own_listings(self):
+        self.owner.is_verified = True
+        self.owner.save()
+        Listing.objects.create(
+            owner=self.owner, title="Mening xonam", description="d", type="room",
+            price=1000, city="Toshkent",
+        )
+        Listing.objects.create(
+            owner=self.other, title="Boshqaning xonasi", description="d", type="room",
+            price=2000, city="Toshkent",
+        )
+        self._auth(self.owner)
+        res = self.client.get("/api/v1/listings/mine/")
+        self.assertEqual(res.status_code, 200)
+        titles = [item["title"] for item in res.data["results"]]
+        self.assertEqual(titles, ["Mening xonam"])
+
+    def test_detail_route_still_works_after_reordering(self):
+        """URL tartibini o'zgartirish `listings/{pk}/` ni buzmasin."""
+        listing = Listing.objects.create(
+            owner=self.owner, title="Xona", description="d", type="room",
+            price=1000, city="Toshkent",
+        )
+        self._auth(self.other)
+        res = self.client.get(f"/api/v1/listings/{listing.pk}/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["id"], listing.pk)
+
+    def test_amenities_route_still_works(self):
+        """`amenities/` router'dan oldin turgani uchun ham ishlashi kerak."""
+        res = self.client.get("/api/v1/amenities/")
+        self.assertEqual(res.status_code, 200)
+
+    def test_listing_images_route_not_shadowed(self):
+        """`listings/<pk>/images/` router'dan oldin turishi kerak."""
+        self.owner.is_verified = True
+        self.owner.save()
+        listing = Listing.objects.create(
+            owner=self.owner, title="Xona", description="d", type="room",
+            price=1000, city="Toshkent",
+        )
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00"
+            b"\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        image = SimpleUploadedFile("t.png", png, content_type="image/png")
+        self._auth(self.owner)
+        res = self.client.post(
+            f"/api/v1/listings/{listing.pk}/images/", {"images": [image]}, format="multipart"
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+
 
 class RoommateTests(CacheResetMixin, APITestCase):
     def setUp(self):

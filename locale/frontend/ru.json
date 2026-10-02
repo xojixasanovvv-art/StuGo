@@ -590,5 +590,8 @@
   "profile.telegramUnlinked": "Telegram отвязан.",
   "profile.telegramUnlinkConfirm": "Отвязать Telegram?",
   "profile.telegramBadCode": "Код не найден или истёк. Нажмите «Привязать Telegram» ещё раз.",
-  "profile.telegramTimeout": "Время ожидания истекло. Либо бот не запущен, либо вы не нажали «Start» в Telegram."
+  "profile.telegramTimeout": "Время ожидания истекло. Либо бот не запущен, либо вы не нажали «Start» в Telegram.",
+  "post.location": "Расположение (выберите на карте)",
+  "post.pickHint": "Нажмите на карте, чтобы отметить место — метку можно перетащить.",
+  "post.pickLocationRequired": "Выберите место на карте."
 }

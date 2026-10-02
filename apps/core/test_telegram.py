@@ -27,12 +27,17 @@ from PIL import Image
 from apps.users.models import Profile, TelegramLinkCode, User
 from apps.users.telegram import (
     TelegramError,
+    _split_message,
     bot_username,
     create_link_code,
     deep_link,
     is_configured,
     link_telegram_account,
     peek_code_owner,
+    send_document,
+    send_message,
+    send_message_once,
+    send_photo,
 )
 
 # Faqat testlarda ishlatiladigan soxta token. `.env` dagi haqiqiy token
@@ -453,8 +458,14 @@ class TelegramBotCommandTests(TestCase):
             call_command("telegram_bot", once=True)
         self.assertIn("TELEGRAM_BOT_TOKEN", str(ctx.exception))
 
+    @override_settings(TELEGRAM_BOT_TOKEN="test-token:ABC")
     def test_command_connects_and_exits_with_once(self):
-        """`--once` buyruqni bitta navbatdan keyin to'xtatadi."""
+        """`--once` buyruqni bitta navbatdan keyin to'xtatadi.
+
+        Token `override_settings` bilan beriladi — test `.env` ga bog'liq
+        bo'lmasin. Aks holda `.env` da token yo'q bo'lsa (yoki turli
+        kompyuterda farq qilsa) test tasodifiy ravishda "qolib" ketadi.
+        """
         stdout = io.StringIO()
         with (
             mock.patch("apps.users.telegram.get_me", return_value={"username": "b"}),
@@ -593,3 +604,208 @@ class ProfileSerializerTelegramTests(TestCase):
         Profile.objects.filter(user=user).update(telegram_id=7)
         data = ProfileSerializer(Profile.objects.get(user=user)).data
         self.assertTrue(data["is_telegram_linked"])
+
+
+class SplitMessageTests(TestCase):
+    """`_split_message` — 4096 belgi chegarasini buzmaslik uchun.
+
+    Chegara Telegram'ning `sendMessage` limiti. Bu funksiya noto'g'ri
+    ishlasa, uzun xabar (loyiha summary) butunlay yuborilmaydi —
+    `Bad Request: message is too long`.
+    """
+
+    def test_short_text_is_single_chunk(self):
+        self.assertEqual(_split_message("salom", 4096), ["salom"])
+
+    def test_text_exactly_at_limit_is_not_split(self):
+        text = "a" * 4096
+        self.assertEqual(_split_message(text, 4096), [text])
+
+    def test_long_text_is_split(self):
+        chunks = _split_message("a" * 9000, 4096)
+        self.assertGreater(len(chunks), 1)
+        for chunk in chunks:
+            self.assertLessEqual(len(chunk), 4096)
+
+    def test_split_preserves_all_characters(self):
+        """Bo'laklash matnni YO'QOTMASIN — bo'laklarni qayta yig'ib
+        bir xil matn olinishi kerak."""
+        text = "\n\n".join(f"Paragraf {i}: " + "x" * 300 for i in range(30))
+        original_len = len(text)
+        chunks = _split_message(text, 4096)
+        self.assertEqual(sum(len(c) for c in chunks), original_len - 2 * (len(chunks) - 1))
+
+    def test_split_prefers_paragraph_boundaries(self):
+        """Bo'sh qator bo'yin kesilishi kerak — Telegram'da shu yerda
+        "Ko'proq" tugmasi chiqadi va chegaralar ko'rinib turadi.
+
+        Tekshirish: chegaralar FAQAT bo'sh qator bo'yin bo'lishi kerak.
+        Bitta bo'lak ichida bir necha paragraf bo'lishi normal (ular
+        `\\n\\n` bilan birlashtiriladi), shuning uchun bo'lakda `\\n\\n`
+        YO'Q degan tekshiruv noto'g'ri. To'g'ri belgi: bo'laklarni
+        "\\n\\n" bilan qayta yig'ish asl matnni BERKDAN qaytaradi —
+        ya'ni hech qanday paragraf yarim kesilmagan."""
+        para = "y" * 1000
+        text = "\n\n".join([para] * 6)
+        chunks = _split_message(text, 4096)
+
+        self.assertGreater(len(chunks), 1)
+        self.assertEqual("\n\n".join(chunks), text)
+        for chunk in chunks:
+            # har bir bo'lak asl matnning bir qismi bo'lishi kerak
+            self.assertIn(chunk, text)
+
+    def test_single_giant_word_is_hard_split(self):
+        """Uzun so'z (bo'sh joysiz) bo'lsa ham chegarani buzmasin."""
+        chunks = _split_message("z" * 10000, 4096)
+        for chunk in chunks:
+            self.assertLessEqual(len(chunk), 4096)
+        self.assertEqual("".join(chunks), "z" * 10000)
+
+    def test_long_line_split_on_space(self):
+        """Bitta qator chegaradan uzun bo'lsa bo'sh joy bo'yicha kesiladi."""
+        words = " ".join(["ab"] * 4000)
+        chunks = _split_message(words, 4096)
+        self.assertGreater(len(chunks), 1)
+        for chunk in chunks:
+            self.assertLessEqual(len(chunk), 4096)
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=FAKE_TOKEN)
+class SendMessageTests(TestCase):
+    """Uzun xabar bo'laklarga bo'linib yuborilishi."""
+
+    def test_single_chunk_has_no_number_prefix(self):
+        with mock.patch(
+            "apps.users.telegram.send_message_once", return_value={"message_id": 1}
+        ) as send:
+            send_message(1, "qisqa xabar")
+        send.assert_called_once()
+        self.assertEqual(send.call_args.args[1], "qisqa xabar")
+
+    def test_long_message_is_split_and_numbered(self):
+        with mock.patch(
+            "apps.users.telegram.send_message_once", return_value={"message_id": 1}
+        ) as send:
+            send_message(1, "a" * 9000)
+        self.assertEqual(send.call_count, 3)
+        first, second, third = (c.args[1] for c in send.call_args_list)
+        self.assertTrue(first.startswith("[1/3]"))
+        self.assertTrue(second.startswith("[2/3]"))
+        self.assertTrue(third.startswith("[3/3]"))
+
+    def test_reply_markup_only_on_first_chunk(self):
+        """Inline tugmalar birinchi xaborda bo'lishi kerak — ikkinchida
+        takrorlansa Telegram xatolik beradi (eski xabar bilan bog'liq).
+
+        `reply_markup` uchinchi POZITSIYALI argument (`send_message_once`
+        imzosi: `chat_id, text, reply_markup`)."""
+        markup = {"inline_keyboard": [[{"text": "OK", "callback_data": "1"}]]}
+        with mock.patch(
+            "apps.users.telegram.send_message_once", return_value={"message_id": 1}
+        ) as send:
+            send_message(1, "a" * 9000, reply_markup=markup)
+        self.assertEqual(send.call_args_list[0].args[2], markup)
+        self.assertIsNone(send.call_args_list[1].args[2])
+
+    def test_send_message_once_passes_payload(self):
+        with mock.patch(
+            "apps.users.telegram._call", return_value={"message_id": 7}
+        ) as call:
+            send_message_once(42, "matn")
+        call.assert_called_once_with(
+            "sendMessage",
+            {"chat_id": 42, "text": "matn", "disable_web_page_preview": True},
+        )
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=FAKE_TOKEN)
+class MultipartSendTests(TestCase):
+    """`send_document` / `send_photo` — multipart orqali fayl yuborish."""
+
+    def setUp(self):
+        self.captured: dict = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"ok": true, "result": {"message_id": 5}}'
+
+        def fake_urlopen(req, timeout=None):
+            self.captured["url"] = req.full_url
+            self.captured["body"] = req.data
+            self.captured["headers"] = req.headers
+            return FakeResponse()
+
+        patcher = mock.patch(
+            "apps.users.telegram.urllib.request.urlopen", side_effect=fake_urlopen
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_send_document_from_path(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "StuGo.zip"
+            path.write_bytes(b"PK\x03\x04-fayl-mazmuni")
+            result = send_document(1, path, caption="Loyiha")
+
+        self.assertEqual(result, {"message_id": 5})
+        self.assertIn("sendDocument", self.captured["url"])
+        self.assertIn(b"StuGo.zip", self.captured["body"])
+        self.assertIn(b"chat_id", self.captured["body"])
+        self.assertIn(b"Loyiha", self.captured["body"])
+        self.assertIn("multipart/form-data", self.captured["headers"]["Content-type"])
+
+    def test_send_document_from_bytes(self):
+        send_document(1, b"x" * 100, filename="test.bin")
+        self.assertIn(b"test.bin", self.captured["body"])
+        self.assertIn(b"x" * 100, self.captured["body"])
+
+    def test_send_document_truncates_long_caption(self):
+        """Telegram caption limiti 1024 — uzun caption yuborilsa API
+        `Bad Request` beradi."""
+        send_document(1, b"x", caption="c" * 5000)
+        body = self.captured["body"]
+        # 1024 ta `c` + "caption" sarlavhasi + qolgan binary
+        self.assertIn(b"c" * 1024, body)
+        self.assertNotIn(b"c" * 1025, body)
+
+    def test_send_document_missing_file_raises(self):
+        with self.assertRaises(TelegramError):
+            send_document(1, "/tmp/bu-fayl-yoq-12345.zip")
+
+    @override_settings(TELEGRAM_BOT_TOKEN="")
+    def test_send_document_without_token_raises(self):
+        with self.assertRaises(TelegramError):
+            send_document(1, b"x")
+
+    def test_send_photo_from_bytes(self):
+        result = send_photo(1, make_png(), caption="Rasm")
+        self.assertEqual(result, {"message_id": 5})
+        self.assertIn("sendPhoto", self.captured["url"])
+        # `multipart/form-data` tana ichida emas — `Content-Type` sarlavhasida
+        # (tanaga faqat `boundary` qismi yoziladi).
+        self.assertIn(
+            "multipart/form-data", self.captured["headers"]["Content-type"]
+        )
+        self.assertIn(b'name="photo"', self.captured["body"])
+        self.assertIn(b"\x89PNG", self.captured["body"])
+
+    def test_send_photo_from_url_uses_json(self):
+        """URL yuborilganda fayl yuklanmaydi — oddiy JSON so'rov yetarli."""
+        with mock.patch(
+            "apps.users.telegram._call", return_value={"message_id": 6}
+        ) as call:
+            send_photo(1, "https://example.com/a.png", caption="Rasm")
+        call.assert_called_once_with(
+            "sendPhoto",
+            {"chat_id": 1, "caption": "Rasm", "photo": "https://example.com/a.png"},
+        )

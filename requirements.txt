@@ -8,6 +8,9 @@ drf-spectacular==0.30.0
 channels==4.3.2
 channels-redis==4.3.0
 daphne==4.2.3
+# Daphne/ASGI statik fayllarni o'zi bermaydi — WhiteNoise ularni
+# `make run` ostida ham beradi (runserver'da `staticfiles` app ishlaydi).
+whitenoise==6.11.0
 Pillow==12.3.0
 psycopg2-binary==2.9.13
 redis==8.1.0

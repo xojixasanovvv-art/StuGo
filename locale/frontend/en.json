@@ -590,5 +590,8 @@
   "profile.telegramUnlinked": "Telegram disconnected.",
   "profile.telegramUnlinkConfirm": "Disconnect Telegram?",
   "profile.telegramBadCode": "The code was not found or has expired. Press “Connect Telegram” again.",
-  "profile.telegramTimeout": "Timed out waiting. Either the bot is not running, or you did not press “Start” in Telegram."
+  "profile.telegramTimeout": "Timed out waiting. Either the bot is not running, or you did not press “Start” in Telegram.",
+  "post.location": "Location (pick on the map)",
+  "post.pickHint": "Click the map to drop a pin — you can drag it to adjust.",
+  "post.pickLocationRequired": "Please pick a location on the map."
 }

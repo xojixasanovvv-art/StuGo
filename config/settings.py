@@ -22,6 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 def env(key, default=None):
     return os.environ.get(key, default)
@@ -98,10 +99,17 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.reports",
     "apps.shop",
+    "apps.administration",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # WhiteNoise `SecurityMiddleware` dan KEYIN bo'lishi shart. Daphne/ASGI
+    # `runserver` dan farqli ravishda statik fayllarni o'zi BERMAYDI:
+    # `manage.py runserver` ularni `staticfiles` app orqali beradi, lekin
+    # `make run` (Daphne) da barcha CSS/JS/logo 404 qaytaradi va sayt
+    # stil-butunligi, xarita, Telegram hamda kirish ishlamaydi.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     # CORS eng yuqorida bo'lishi shart (CommonMiddleware'dan oldin)
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -118,6 +126,11 @@ MIDDLEWARE = [
     # (cookie'siz API so'rovlari uchun). Cookie'ni esa `LocaleMiddleware`
     # o'zi o'qiydi — alohida middleware kerak emas.
     "apps.core.middleware.ApiLocaleMiddleware",
+    # Boshqaruv paneli himoyasi. `AuthenticationMiddleware` dan KEYIN
+    # bo'lishi shart — aks holda `request.user` mavjud bo'lmaydi va
+    # middleware har doim "anonim" deb o'ylab, har kimni login'ga
+    # yuboradi (hatto kirgan admin'ni ham).
+    "apps.administration.permissions.StaffRequiredMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -186,7 +199,62 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # REDIS_URL majburiy.
 # ---------------------------------------------------------------------------
 
-if REDIS_URL:
+# Redisni tekshirish
+#
+# Muammo: `.env` da `REDIS_URL` ko'rsatilgan, lekin Redis o'rnatilmagan
+# bo'lsa — **barcha** cache bilan ishlovchi endpoint'lar (OTP yuborish,
+# throttle) `500 Connection refused` bilan uziladi. Lokal rivojlanishda bu
+# juda tez bo'ladi va chalkashlik keltiradi.
+#
+# Yechim: `USE_REDIS` o'zgaruvchisi bilan boshqariladi.
+#   USE_REDIS=auto (default) — Redis ulinsa ishlatiladi, ulanmasa LocMem
+#   USE_REDIS=1              — Redis MAJBURIY (production uchun)
+#   USE_REDIS=0              — Redis butunlay o'chiriladi
+#
+# Production'da `USE_REDIS=1` tavsiya qilinadi: LocMem cache ko'p ishchi
+# jarayonda bo'linmaydi — OTP kodlari va throttle hisoblari yo'qoladi.
+
+
+def redis_available(url):
+    """Redis'ga ulanib bo'lishini tekshiradi (jim, tez)."""
+    if not url:
+        return False
+    try:
+        import socket
+        from urllib.parse import urlparse
+
+        parsed = urlparse(url)
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 6379
+        with socket.create_connection((host, port), timeout=0.35):
+            return True
+    except OSError:
+        return False
+
+
+_use_redis_mode = env("USE_REDIS", "auto").strip().lower()
+REDIS_AVAILABLE = redis_available(REDIS_URL)
+
+if _use_redis_mode in {"1", "true", "yes", "on", "required"}:
+    # Majburiy rejim: Redis ishlamasa xato beriladi (production uchun to'g'ri)
+    if not REDIS_AVAILABLE:
+        raise RuntimeError(
+            f"USE_REDIS={_use_redis_mode} lekin Redis'ga ulab bo'lmadi: {REDIS_URL}. "
+            "Redis'ni ishga tushiring yoki .env'da USE_REDIS=0 qo'ying."
+        )
+elif _use_redis_mode in {"0", "false", "no", "off", "disable"}:
+    REDIS_AVAILABLE = False
+elif not REDIS_AVAILABLE and REDIS_URL:
+    import warnings as _warnings
+
+    _warnings.warn(
+        f"Redis'ga ulab bo'lmadi ({REDIS_URL}) — lokal xotira (LocMemCache) "
+        "ishlatilmoqda. OTP va throttle hisoblari server restartida yo'qoladi. "
+        "Redis'ni ishga tushiring yoki .env'da USE_REDIS=0 qo'ying.",
+        RuntimeWarning,
+    )
+
+if REDIS_AVAILABLE:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
@@ -203,6 +271,7 @@ else:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "stugo-default-cache",
         }
     }
     CHANNEL_LAYERS = {
@@ -277,6 +346,17 @@ FRONTEND_LOCALE_DIR = BASE_DIR / "locale" / "frontend"
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
+
+# WhiteNoise: `make run` (Daphne) ostida statik fayllarni beradi.
+# `USE_FINDERS` — `collectstatic` ishga tushirmasdan, fayllarni to'g'ridan
+# to'g'ri manba papkalardan o'qiydi (lokal ishlash uchun qulay).
+# Production'da (`DEBUG=False`) esa `collectstatic` natijasi `STATIC_ROOT`dan
+# beriladi va fayllar uzoq mudurga keshlanadi.
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = DEBUG
+# Fayllar kompozit nom bilan keshlanadi (`name.abc123.js`) — kesh
+# buzilmaydi. Kompozit nom ishlatilmasa eskirgan fayl brauzerda qoladi.
+WHITENOISE_MANIFEST_STR = False
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -435,6 +515,12 @@ TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", "")
 # qisqaradi, shuning uchun `TELEGRAM_WEB_BASE_URL` da `/` BO'LMASLIGI kerak.
 TELEGRAM_WEB_BASE_URL = env("TELEGRAM_WEB_BASE_URL", "http://127.0.0.1:8000")
 
+# Xabar yuboriladigan chat id. Loyihani Telegram'ga yuborish skripti
+# (`scripts/send_project_summary.py`, `make telegram-summary`) shundan
+# foydalanadi. Kodga hardcoded chat id yozmaymiz — shaxsiy ma'lumot
+# repository'ga tushmasin; `.env` da saqlanadi.
+STUGO_TELEGRAM_CHAT_ID = env("STUGO_TELEGRAM_CHAT_ID", "")
+
 # Deep-link kodi muddati (soniya) va urinishlar chegarasi.
 TELEGRAM_LINK_TTL_SECONDS = int(env("TELEGRAM_LINK_TTL_SECONDS", "600"))
 TELEGRAM_LINK_MAX_ATTEMPTS = int(env("TELEGRAM_LINK_MAX_ATTEMPTS", "5"))
@@ -488,3 +574,8 @@ LOGGING = {
         },
     },
 }
+
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+

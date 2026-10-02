@@ -26,7 +26,13 @@ admin.site.index_title = "Boshqaruv paneli"
 
 urlpatterns = [
     path("", HomeView.as_view(), name="home"),
-    path("admin/", admin.site.urls),
+    # Boshqaruv paneli — `/admin-panel/`. Faqat `is_staff` foydalanuvchilar
+    # kiradi (`StaffRequiredMiddleware` + `StaffRequiredMixin`).
+    path("admin-panel/", include("apps.administration.urls")),
+    # Django admin — `/django-admin/`. Bu TEKNIK panel (modellar ro'yxati,
+    # DB va tuzilma ko'rish uchun). Oddiy kundalik boshqaruv uchun
+    # `/admin-panel/` ni ishlating.
+    path("django-admin/", admin.site.urls),
     path("health/", HealthView.as_view(), name="health"),
     # Tilni o'zgartirish (cookie + JSON javob)
     path("i18n/setlang/", SetLanguageView.as_view(), name="set_language"),
@@ -34,6 +40,7 @@ urlpatterns = [
     path("api/v1/", include("apps.users.urls")),
     path("api/v1/i18n/", include("apps.core.urls")),
     path("api/v1/", include("apps.housing.urls")),
+    path("api/v1/", include("apps.shop.urls")),
     path("api/v1/", include("apps.roommates.urls")),
     path("api/v1/", include("apps.chat.urls")),
     path("api/v1/", include("apps.notifications.urls")),

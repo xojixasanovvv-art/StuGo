@@ -590,5 +590,8 @@
   "profile.telegramUnlinked": "Telegram bog'lanishi uzildi.",
   "profile.telegramUnlinkConfirm": "Telegram bog'lanishini uzmoqchimisiz?",
   "profile.telegramBadCode": "Kod topilmadi yoki muddati tugagan. «Telegram'ga ulash» tugmasini qayta bosing.",
-  "profile.telegramTimeout": "Kutilgan vaqt tugadi. Yoki bot ishlayapti, yoki Telegram'da «Boshlash»ni bosmadingiz."
+  "profile.telegramTimeout": "Kutilgan vaqt tugadi. Yoki bot ishlayapti, yoki Telegram'da «Boshlash»ni bosmadingiz.",
+  "post.location": "Joylashuv (xaritada tanlang)",
+  "post.pickHint": "Xaritada joyni bosib belgilang — marker surilsa ham mumkin.",
+  "post.pickLocationRequired": "Xaritada joyni tanlang."
 }

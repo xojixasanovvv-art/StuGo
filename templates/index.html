@@ -1,4 +1,4 @@
-{% load i18n_tags %}<!DOCTYPE html>
+{% load i18n_tags static %}<!DOCTYPE html>
 <html lang="{{ current_language|default:"uz" }}">
 
 <head>
@@ -176,22 +176,28 @@
             cursor: pointer;
         }
 
-        /* SVG LOGO VECTOR FROM REFERENCE */
+        /* LOGO — `img` orqali `static/img/logo.png` yuklanadi */
         .logo-svg-box {
             width: 48px;
             height: 48px;
-            background: #001233;
-            border-radius: 14px;
+            background: #0B192C;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 14px rgba(0, 18, 51, 0.3);
+            box-shadow: 0 4px 14px rgba(11, 25, 44, 0.3);
             padding: 6px;
+            overflow: hidden;
         }
 
+        .logo-svg-box img,
         .logo-svg-box svg {
             width: 100%;
             height: 100%;
+            display: block;
+        }
+
+        .logo-svg-box svg {
             fill: #FFFFFF;
         }
 
@@ -1548,14 +1554,7 @@
     <div class="navbar">
         <div class="logo-container" onclick="showSection('home')">
             <div class="logo-svg-box">
-                <svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M250 80 L60 170 L250 260 L440 170 Z"/>
-                    <path d="M410 200 L410 320" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
-                    <circle cx="410" cy="335" r="15"/>
-                    <path
-                            d="M200 230 C 130 250, 130 350, 250 370 C 370 390, 370 470, 230 480 C 160 480, 110 430, 110 400"
-                            fill="none" stroke="#FFFFFF" stroke-width="50" stroke-linecap="round"/>
-                </svg>
+                <img src="{% static 'img/logo.png' %}" alt="StuGo">
             </div>
         </div>
 
@@ -1618,6 +1617,20 @@
                 <span data-i18n="nav.login" id="navAuthText">{% tt "nav.login" %}</span>
                 <span id="navAuthName" hidden></span>
             </button>
+
+            <!-- Boshqaruv paneli. FAQAT `is_staff` foydalanuvchilarga
+                 ko'rinadi — oddiy talaba uchun ham serverda yopiq
+                 (`StaffRequiredMiddleware`), shuning uchun bu shart
+                 faqat "tugma ko'rinmasin" uchun. Link oddiy `<a>`:
+                 `showSection` frontend SPA sahifasi, panel esa alohida
+                 Django sahifasi — shuning uchun `return false` qo'yiladi. -->
+            {% if user.is_staff %}
+                <a class="btn btn-outline" id="navAdminBtn" href="{% url 'admin_panel:dashboard' %}"
+                   title="Boshqaruv paneli">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span class="nav-full">Boshqaruv</span>
+                </a>
+            {% endif %}
 
             <!-- Rejim: yorug' (quyosh) <-> qora (oy) -->
             <button class="btn btn-outline theme-toggle" id="themeToggleBtn" type="button"
@@ -1808,6 +1821,14 @@
                 <div id="amenityBox" style="display:flex; flex-wrap:wrap; gap:8px;">
                     <span style="font-size:13px; color:var(--text-muted);" data-i18n="common.loading">{% tt "common.loading" %}</span>
                 </div>
+            </div>
+            <div class="form-group">
+                <label data-i18n="post.location">{% tt "post.location" %}</label>
+                <div id="pickMap" style="height:200px; border-radius:10px; overflow:hidden;
+                     border:1px solid var(--border); z-index:0;"></div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:6px;"
+                     id="pickHint" data-i18n="post.pickHint">{% tt "post.pickHint" %}</div>
+                <input type="hidden" id="fLat"><input type="hidden" id="fLng">
             </div>
             <div class="form-group">
                 <label data-i18n="post.photosLabel">{% tt "post.photosLabel" %}</label>
@@ -2392,6 +2413,35 @@
             '<text x="50%" y="50%" fill="#64748B" font-size="16" font-family="sans-serif" ' +
             'text-anchor="middle">' + esc(label) + '</text></svg>';
         return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    }
+
+    /* Demo uy-joy rasmlari */
+    var DEMO_HOUSING_IMAGES = {
+        room: [
+            'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1493809842364-78817add7ffb?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1536376072261-38c75010e6c9?auto=format&fit=crop&w=800&q=80'
+        ],
+        bedspace: [
+            'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80'
+        ],
+        whole_apartment: [
+            'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80',
+            'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=800&q=80'
+        ]
+    };
+
+    /* true: backend rasmi bo'lsa ham hamma e'longa demo rasm qo'yiladi */
+    var FORCE_DEMO_IMAGES = false;
+
+    function listingImage(item) {
+        var url = item.main_image || '';
+        var isFake = !url || /placeholder|default|no[-_]?image|noimage/i.test(url);
+        if (!FORCE_DEMO_IMAGES && !isFake) return url;
+        var pool = DEMO_HOUSING_IMAGES[item.type] || DEMO_HOUSING_IMAGES.room;
+        return pool[Number(item.id || 0) % pool.length];
     }
 
     /* ---------------------------------------------------------- util */
@@ -3486,7 +3536,7 @@
         card.className = 'housing-item';
         card.id = 'housing-card-' + item.id;
 
-        var img = item.main_image || placeholderImg();
+        var img = listingImage(item);
         var badge = typeLabel(item.type);
 
         // Ro'yxat kartasi — backend dan kelgan ma'lumot faqat matn sifatida
@@ -3494,9 +3544,14 @@
         card.innerHTML =
             '<div class="housing-img-box">' +
             '<img src="' + esc(img) + '" alt="' + esc(item.title) + '" ' +
+            'onerror="this.onerror=null;this.src=placeholderImg()" ' +
             'onclick="openLightbox(this.src)" style="cursor:pointer;">' +
             '<span class="badge-type">' + esc(badge) + '</span>' +
-            '<button class="expand-img-btn" onclick="openLightbox(this.previousElementSibling.src)">' +
+            // `previousElementSibling` ishlatilmasligi kerak: `<img>` va
+            // tugma orasida `<span class="badge-type">` turadi, shuning uchun
+            // `previousElementSibling` rasm emas — `.src` `undefined` bo'lib,
+            // `openLightbox()` darhol qaytaradi va rasm kattalashtirilmaydi.
+            '<button class="expand-img-btn" onclick="openLightbox(this.parentElement.querySelector(\'img\').src)">' +
             '<i class="fa-solid fa-expand"></i> ' + t('housing.expand') + '</button>' +
             '</div>' +
             '<div class="housing-details">' +
@@ -3583,6 +3638,48 @@
     }
 
     /* ============================================================ E'LON BERISH */
+    /* E'lon joyini xaritada tanlash. Koordinata bo'lmasa e'lon xaritada
+       ko'rinmaydi, shuning uchun bu majburiy qadam. Xarita modal ichida
+       `display:none` holatda bo'lgani uchun faqat ochilganda yaratiladi. */
+    var pickMap = null, pickMarker = null;
+    var PICK_DEFAULT = {lat: 41.337079, lng: 69.278322}; /* Toshkent markazi */
+
+    function initPickMap() {
+        if (pickMap || typeof window.L === 'undefined') return;
+        var el = $('pickMap');
+        if (!el) return;
+        pickMap = window.L.map('pickMap').setView([PICK_DEFAULT.lat, PICK_DEFAULT.lng], 12);
+        setupLeafletIcons(window.L);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(pickMap);
+        pickMap.on('click', function (e) {
+            var ll = e.latlng;
+            $('fLat').value = ll.lat.toFixed(6);
+            $('fLng').value = ll.lng.toFixed(6);
+            if (pickMarker) pickMarker.setLatLng(ll);
+            else pickMarker = window.L.marker(ll, {draggable: true}).addTo(pickMap);
+            pickMarker.off('dragend').on('dragend', function () {
+                var p = pickMarker.getLatLng();
+                $('fLat').value = p.lat.toFixed(6);
+                $('fLng').value = p.lng.toFixed(6);
+            });
+        });
+        // Modal animatsiyasi tugagach o'lchamni to'g'rilash — aks holda
+        // kartalar noto'g'ri joyda chiziladi.
+        setTimeout(function () { if (pickMap) pickMap.invalidateSize(); }, 250);
+    }
+
+    function resetPickMap() {
+        $('fLat').value = '';
+        $('fLng').value = '';
+        if (!pickMap) return;
+        if (pickMarker) { pickMap.removeLayer(pickMarker); pickMarker = null; }
+        pickMap.setView([PICK_DEFAULT.lat, PICK_DEFAULT.lng], 12);
+        setTimeout(function () { if (pickMap) pickMap.invalidateSize(); }, 60);
+    }
+
     function openPostModal() {
         if (!requireAuth()) return;
         if (!state.user.is_verified) {
@@ -3594,6 +3691,8 @@
         $('listingHint').textContent = '';
         $('imgError').textContent = '';
         openModal('postModal');
+        initPickMap();
+        resetPickMap();
     }
 
     function onFilesPicked() {
@@ -3634,6 +3733,15 @@
         if (rooms) body.rooms = rooms;
         var amen = selectedAmenities();
         if (amen.length) body.amenity_ids = amen;
+        // Xaritada joy tanlanmagan bo'lsa e'lon xaritada ko'rinmaydi —
+        // foydalanuvchiga aniq xabar beramiz.
+        if (!$('fLat').value || !$('fLng').value) {
+            btn.disabled = false;
+            $('listingHint').textContent = t('post.pickLocationRequired');
+            return;
+        }
+        body.lat = $('fLat').value;
+        body.lng = $('fLng').value;
 
         api('/listings/', {method: 'POST', body: body})
             .then(function (listing) {
@@ -3947,6 +4055,25 @@
     var map = null;
     var markersLayer = null;
 
+    /* Leaflet belgi rasmlarini aniq manzil bilan beramiz.
+       Leaflet 1.9 `L.Icon.Default` uchun rasm yo'lini `leaflet.css` dagi
+       `.leaflet-default-icon-path` qoidasidan O'QIB topadi ("path-guessing").
+       CDN sekin bo'lsa yoki CSS hali qo'llanmagan bo'lsa, bu qoida bo'sh
+       qoladi -> `imagePath` aniqlanmaydi -> `iconUrl` nisbiy
+       `marker-icon.png` ga aylanadi -> u sayt manzili bo'yicha 404 beradi
+       va markerlar SHAFFOF, ko'rinmaydigan kvadrat bo'lib qoladi.
+       Bu xatoni oldining olish uchun URL'larni qo'lda beramiz. */
+    var LEAFLET_ICON_PATH = 'https://unpkg.com/leaflet@1.9.4/dist/images/';
+    function setupLeafletIcons(leaflet) {
+        try {
+            leaflet.Icon.Default.imagePath = LEAFLET_ICON_PATH;
+        } catch (e) {
+            if (window.console && console.warn) {
+                console.warn('StuGo: Leaflet belgilarini sozlab bo\'lmadi —', e);
+            }
+        }
+    }
+
     function initMap() {
         if (map) return;
         // `window.L` Leaflet'ning global obyekti. Uning o'rniga boshqa narsa
@@ -3960,6 +4087,7 @@
             return;
         }
         try {
+            setupLeafletIcons(leaflet);
             map = leaflet.map('map').setView([41.311081, 69.240562], 12);
             leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
@@ -3981,9 +4109,7 @@
             var lng = parseFloat(item.lng);
             if (!isFinite(lat) || !isFinite(lng)) return;
             var marker = window.L.marker([lat, lng]).addTo(markersLayer);
-            var img = item.main_image
-                ? '<img src="' + esc(item.main_image) + '" style="width:120px;height:80px;object-fit:cover;border-radius:6px;">'
-                : '';
+            var img = '<img src="' + esc(listingImage(item)) + '" style="width:120px;height:80px;object-fit:cover;border-radius:6px;">';
             var html = img + '<div style="font-weight:700;margin-top:4px;">' + esc(item.title) + '</div>' +
                 '<div style="color:var(--info);font-weight:700;">' + esc(fmtPrice(item.price, item.currency)) + '</div>' +
                 '<div style="font-size:11px;color:var(--text-muted);">' +
